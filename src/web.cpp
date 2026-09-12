@@ -45,6 +45,7 @@ static size_t           stateLen = 0;
 uint32_t wifiDropCount();
 uint32_t wifiDownSecs();
 uint32_t wifiRoamCount();
+int32_t  wifiRssiAvg();
 
 void webSetNote(const char* code, const char* arg) {
     // bandControl() ruft das in jedem Durchlauf - ohne den Vergleich waere das
@@ -136,6 +137,7 @@ static void buildState() {
     d["rssi"]      = WiFi.RSSI();
     d["wifiDrops"] = wifiDropCount();
     d["wifiRoams"] = wifiRoamCount();
+    d["rssiAvg"]   = wifiRssiAvg();
 
     stateLen = serializeJson(d, stateJson, sizeof(stateJson));
     if (stateLen >= sizeof(stateJson) - 1) log_e("Zustand passt nicht in den Puffer");

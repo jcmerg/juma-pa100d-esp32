@@ -31,9 +31,11 @@ static uint32_t wifiRoams_   = 0;
 static uint32_t wifiWeakAt   = 0;     // seit wann ist der Pegel schlecht?
 static uint32_t wifiRoamAt   = 0;
 static bool     wifiWasUp    = false;
+static float    rssiAvg      = 0;     // gleitender Mittelwert
 
 uint32_t wifiDropCount() { return wifiDrops_; }
 uint32_t wifiRoamCount() { return wifiRoams_; }
+int32_t  wifiRssiAvg()   { return (int32_t)rssiAvg; }
 uint32_t wifiDownSecs()  {
     return (WiFi.status() == WL_CONNECTED) ? 0 : (millis() - wifiLastOk) / 1000;
 }
@@ -50,20 +52,26 @@ static void wifiSupervise() {
         wifiWasUp  = true;
         wifiLastOk = millis();
 
-        // Schlechter Pegel: nicht sofort reagieren, sondern erst wenn er
-        // laenger anliegt - ein kurzer Einbruch ist normal.
-        if (WiFi.RSSI() > WIFI_ROAM_RSSI) { wifiWeakAt = 0; return; }
+        // Gleitender Mittelwert statt Momentanwert: der RSSI schwankt um
+        // 10 dB und mehr. Mit dem Momentanwert setzt jede einzelne gute
+        // Messung den Timer zurueck, und die Bedingung "60 s durchgehend
+        // schlecht" wird nie erreicht - der Wechsel feuert dann nie.
+        const int32_t r = WiFi.RSSI();
+        rssiAvg = rssiAvg ? (rssiAvg * 0.8f + (float)r * 0.2f) : (float)r;
+
+        if (rssiAvg > (float)WIFI_ROAM_RSSI) { wifiWeakAt = 0; return; }
         if (!wifiWeakAt) { wifiWeakAt = millis(); return; }
         if (millis() - wifiWeakAt < WIFI_ROAM_HOLD_MS) return;
         if (millis() - wifiRoamAt < WIFI_ROAM_MIN_GAP) return;
 
         // Neu verbinden. Die Suche oben nimmt den staerksten AP - das kann
         // derselbe sein, dann war es ein Versuch, mehr nicht.
-        log_w("RSSI %d dBm seit %lu s - suche staerkeren AP",
-              (int)WiFi.RSSI(), (unsigned long)((millis() - wifiWeakAt) / 1000));
+        log_w("RSSI im Mittel %d dBm seit %lu s - suche staerkeren AP",
+              (int)rssiAvg, (unsigned long)((millis() - wifiWeakAt) / 1000));
         wifiRoams_++;
         wifiRoamAt = millis();
         wifiWeakAt = 0;
+        rssiAvg    = 0;
         WiFi.disconnect();
         WiFi.begin(cfg.ssid.c_str(), cfg.pass.c_str());
         return;

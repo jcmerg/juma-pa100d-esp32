@@ -249,6 +249,24 @@ Die Temperaturanzeige folgt der Einheit der PA: meldet sie `F`, wechseln
 Beschriftung und Einheit auf Fahrenheit, die Zonen bleiben dieselben
 Temperaturen.
 
+**Die Temperaturzonen sind Werte des Dashboards, keine der PA.** Das Gerät
+selbst kennt zwei einstellbare Schwellen, und keine davon steht in der
+Statusmeldung:
+
+| | Default | einstellbar |
+|---|---|---|
+| Over-Temperature Limit | **70 °C** | 50–100 °C |
+| Fan Cut-In Temperature | 40 °C | 0–80 °C |
+
+Ab der Abschaltschwelle setzt die PA das Alarmbit und läuft der Lüfter auf
+Maximum. Wer sein Gerät auf einen anderen Wert eingestellt hat, passt `TWARN`
+und `THIGH` in `src/index_html.h` entsprechend an — sinnvoll ist eine Warnzone
+deutlich **unter** der Abschaltschwelle, weil das Alarmbit erst beim Auslösen
+kommt und dann keine Zeit mehr bleibt.
+
+Ein Lüfter auf Stufe 3 ist dabei selbst ein Frühwarnzeichen: er springt per
+Default schon bei 40 °C an und läuft nur unter Last ganz hoch.
+
 **Eingangsleistung gibt es nicht.** Die PA misst HF nur am Ausgang — Kanal 12
 rückwärts, Kanal 13 vorwärts, daraus Ausgangsleistung und SWR. Ein Messpunkt
 für die Ansteuerung existiert im Gerät nicht.

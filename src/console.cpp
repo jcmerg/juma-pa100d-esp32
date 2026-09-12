@@ -5,6 +5,7 @@
 // in main.cpp
 uint32_t wifiDropCount();
 uint32_t wifiRoamCount();
+int32_t  wifiRssiAvg();
 #include "juma.h"
 #include "tci.h"
 #include "web.h"
@@ -12,6 +13,7 @@ uint32_t wifiRoamCount();
 // in main.cpp
 uint32_t wifiDropCount();
 uint32_t wifiRoamCount();
+int32_t  wifiRssiAvg();
 #include "bands.h"
 #include <Arduino.h>
 #include <WiFi.h>
@@ -54,8 +56,8 @@ static void show() {
     io->printf("WLAN      SSID '%s'  Passwort %s\n",
                   cfg.ssid.c_str(), cfg.pass.length() ? "gesetzt" : "-");
     if (WiFi.status() == WL_CONNECTED)
-        io->printf("          verbunden, IP %s, RSSI %d dBm\n",
-                      WiFi.localIP().toString().c_str(), WiFi.RSSI());
+        io->printf("          verbunden, IP %s, RSSI %d dBm (Mittel %d)\n",
+                      WiFi.localIP().toString().c_str(), WiFi.RSSI(), (int)wifiRssiAvg());
     else if (WiFi.getMode() & WIFI_AP)
         io->printf("          AP '%s', IP %s\n", AP_SSID,
                       WiFi.softAPIP().toString().c_str());
