@@ -1,0 +1,535 @@
+# JUMA PA-100D Controller auf ESP32
+
+Steuert die Endstufe **JUMA PA-100D** über ihren RS-232-Port. Web-Dashboard per
+WLAN, automatische Bandwahl über **TCI** (ExpertSDR, deskHPSDR, Thetis),
+OTA-Updates und eine Diagnosekonsole über Telnet — alles auf einem ESP32 für
+ein paar Euro.
+
+![Dashboard](docs/dashboard-de.png)
+
+```
+SDR-Software ──TCI (WebSocket)──► ESP32 ──UART2──► MAX3232 ──RS-232──► JUMA PA-100D
+                                    │
+                 Browser ◄──HTTP :80 + WebSocket :81
+```
+
+- alle 13 Statusfelder der PA live im Browser, Pegelbalken und Rundanzeigen
+- Bandwahl folgt der QRG der SDR-Software, mit Beruhigungszeit und TX-Sperre
+- Bedienung von OPERATE/STANDBY, Band, Abschwächer und Alarmquittierung
+- Oberfläche auf Deutsch und Englisch
+- Firmware-Update über WLAN, ohne USB-Kabel am Verstärker
+- Telnet-Konsole für Konfiguration und Fehlersuche
+
+<table>
+<tr>
+<td width="50%"><a href="docs/settings-de.png"><img src="docs/settings-de.png" alt="Konfiguration"></a></td>
+<td width="50%"><a href="docs/dashboard-en.png"><img src="docs/dashboard-en.png" alt="English UI"></a></td>
+</tr>
+<tr>
+<td>Konfiguration hinter dem Zahnrad</td>
+<td>Dieselbe Oberfläche auf Englisch</td>
+</tr>
+</table>
+
+> **Ohne Gewähr.** Diese Firmware schaltet die Bandfilter einer Endstufe. Ein
+> falsches Filter kann die Ausgangsstufe zerstören. Vor dem ersten scharfen
+> Betrieb die Verkabelung mit dem eingebauten RS-232-Loopback-Test der PA prüfen
+> und die Bandumschaltung in STANDBY durchspielen.
+
+---
+
+## Hardware
+
+Gebraucht werden ein ESP32 (getestet auf ESP32-WROOM, 4 MB Flash) und ein
+**MAX3232**-Pegelwandler. Die PA hat echte RS-232-Pegel — das Manual sagt dazu
+ausdrücklich „designed to provide and accept the standard levels" —, ein
+direkter Anschluss an den ESP32 zerstört dessen Eingang.
+
+**MAX232 ist der falsche Typ**: er läuft nur an 5 V, und sein Empfängerausgang
+schwingt auf 5 V gegen einen 3,3-V-Eingang.
+
+### Verdrahtung
+
+Die RS-232-Buchse der PA-100D ist eine **3,5-mm-Stereoklinke**, keine DB9.
+
+| ESP32 | MAX3232-Modul | JUMA (3,5-mm-Klinke) |
+|---|---|---|
+| GPIO17 (`TX2`, U2TXD) | TTL **TXD** | RS-232-Treiberausgang → **Tip** |
+| GPIO16 (`RX2`, U2RXD) | TTL **RXD** | RS-232-Empfängereingang → **Ring** |
+| 3V3 | VCC | — |
+| GND | GND | **Sleeve** |
+
+Das Modul **an 3,3 V** betreiben, nicht an 5 V.
+
+GPIO16/17 sind die Standardpins von UART2 und auf WROOM-Modulen frei. Auf
+**WROVER** belegt das PSRAM diese Pins — dort z. B. 25/26 nehmen und
+`include/config.h` anpassen. UART0 bleibt die USB-Konsole.
+
+### Welche Ader ist welche?
+
+Die Beschriftung der Billigmodule ist uneinheitlich — manche labeln die TTL-,
+manche die RS-232-Seite. Variantenunabhängig bestimmen:
+
+1. Modul an 3,3 V, TTL-TXD offen lassen, nichts an die PA.
+2. Am RS-232-Ausgang gegen GND messen: dort stehen ca. **−5,5 V**. Das ist der
+   **Treiberausgang** → an **Tip**.
+3. Der andere RS-232-Pin ist der Empfängereingang → an **Ring**.
+
+Gegenprobe an der PA: **Ring gegen Sleeve** muss im Ruhezustand ca. **−5 V**
+zeigen, RS-232-Mark ist negativ. Zeigt stattdessen Tip das, stehen die Jumper
+auf dem Frequency-Sense-Board in der „software update"-Stellung und Tip/Ring
+sind vertauscht.
+
+### HF-Umgebung
+
+Das Gerät sitzt neben einem 100-W-Linear:
+
+- Kabel kurz und geschirmt, Ferritkern über die Klinkenleitung
+- je 100 nF von TX/RX nach GND direkt am MAX3232
+- ESP32 in ein Metallgehäuse
+- die Versorgung **nicht** ungefiltert von den 13,8 V der PA abzweigen
+- gegen Masseschleifen: ein isolierter Transceiver (z. B. ADM3251E) statt des
+  MAX3232
+
+### Einstellungen an der PA
+
+Drei Punkte müssen stimmen, sonst antwortet die PA überhaupt nicht:
+
+| | |
+|---|---|
+| Serial Speed | **115200** (Werkseinstellung ist 9600) |
+| Serial Port Mode | **Remote** |
+| Auto Band Detect | **F-Sense** oder **FT-817** |
+
+Der letzte Punkt ist keine Schikane: laut Manual sind Remote- und Test-Modus
+nur bei diesen beiden Einstellungen überhaupt aktiv.
+
+### Bench-Test ohne PC
+
+Die PA hat einen eingebauten Loopback-Test: **DISPLAY/CONFIG aus dem
+Off-Zustand halten und einschalten**. Damit lässt sich die Verkabelung prüfen,
+bevor das erste Bandkommando fliegt. Beenden mit kurzem PWR-Druck.
+
+---
+
+## Inbetriebnahme
+
+### Passwörter setzen
+
+Die Defaults in `include/config.h` sind **Platzhalter** und müssen vor dem
+Einsatz ersetzt werden — sie schützen den AP-Fallback und das Firmware-Update:
+
+```ini
+; platformio.ini
+build_flags =
+    -DAP_PASSWORD='"..."'      ; mindestens 8 Zeichen
+    -DOTA_PASSWORD='"..."'
+```
+
+Beim Wechsel gilt die Henne-Ei-Regel: der Upload, der das neue Passwort
+installiert, braucht noch das **alte**.
+
+### Bauen und flashen
+
+```sh
+pio run                                  # bauen
+pio run -t upload                        # erstes Mal per USB
+export JUMA_OTA_PASS=...                 # danach über WLAN
+./tools/flash-wifi.sh juma-pa.local
+./tests/run.sh                           # Hosttests, kein ESP32 nötig
+```
+
+### WLAN einrichten
+
+Drei gleichwertige Wege:
+
+1. **Serialkonsole** (`pio device monitor`), direkt beim Flashen:
+   ```
+   scan                  # Netze auflisten
+   ssid MeinNetz
+   pass geheim123
+   save                  # speichert in NVS und startet neu
+   ```
+2. **Telnet**, sobald WLAN steht: `telnet juma-pa.local`, dieselben Kommandos.
+3. **AP-Fallback**: ohne gültige Konfiguration spannt der ESP32 den AP
+   **`JUMA-PA`** auf, Dashboard auf `http://192.168.4.1/`.
+
+Hidden SSIDs funktionieren — der ESP32 sucht sie per aktivem Scan.
+
+---
+
+## Bedienung
+
+Das Dashboard ist ab 900 px Breite zweispaltig und zeigt alle 13 Statusfelder
+gleichzeitig. Die Konfiguration liegt hinter dem Zahnrad, damit im Hauptbild nur
+steht, was im Betrieb gebraucht wird.
+
+### Pegelanzeigen
+
+| Anzeige | Bereich | warn ab | hoch ab | Darstellung |
+|---|---|---|---|---|
+| RF | 0–150 W | 100 | 120 | Segmentbalken, 36 Segmente |
+| VSWR | 1–3 | 1,5 | 2 | Segmentbalken |
+| PA Temp | 20–80 °C | 50 | 60 | Rundanzeige, 180° |
+| Lüfter | 4 Stufen | Mittel | Schnell | Rundanzeige mit Stufentext |
+
+Farben: normal `#00b33c`, warn `#ff9900`, hoch `#e60000`, unbeleuchtet
+`#595959`. Die Segmente sind nach ihrer **eigenen** Position gefärbt — der
+Balken zeigt also durchgehend die Zonen, statt bei Überschreitung komplett
+umzuschlagen. Nur Zahl und Stufentext nehmen die Farbe der aktuellen Zone.
+
+### Sprache
+
+Deutsch und Englisch, umschaltbar in den Einstellungen. Die Wahl liegt im
+`localStorage` des Browsers, jedes Gerät behält also seine eigene; beim ersten
+Aufruf entscheidet `navigator.language`.
+
+Damit das vollständig funktioniert, schickt die Firmware **keine fertigen
+Texte**: Hinweise gehen als Code plus Argument raus (`txwait`,
+`unsupported`+Band, `bandok`+Band …), und `/api/config` antwortet mit `saved`
+statt einem deutschen Satz.
+
+Im Wörterbuch dürfen **keine HTML-Entities** stehen — die Texte werden per
+`textContent` gesetzt, `&amp;` erschiene wörtlich.
+
+### Der Hinweis unter dem Zustand
+
+Er zeigt immer den **aktuellen Grund**, nicht ein einmaliges Ereignis; sonst
+stünde nach dem Umschalten eine veraltete Meldung da und direkt nach dem Start
+gar keine. `bandControl()` setzt ihn in jedem Durchlauf neu:
+
+| Code | Bedeutung |
+|---|---|
+| `aboff` | TCI-Bandwahl aus |
+| `tcioff` / `tcidis` | TCI-Client abgeschaltet / nicht verbunden |
+| `tcinofreq` | verbunden, aber noch keine QRG |
+| `txwait` | Bandwechsel wartet, TX aktiv |
+| `paoff` | PA antwortet nicht |
+| `unsupported` | Band wird von der PA nicht abgedeckt |
+| `bandok` / `bandset` | Band folgt TCI / wurde umgeschaltet |
+| `tciauto` | TCI weg, PA per `=A` auf ihre eigene Bandwahl zurückgestellt |
+| `selstuck` | PA bleibt auf `A`, obwohl die TCI-Bandwahl sie auf `M` holen will |
+
+Nur echte Hindernisse werden orange eingefärbt; „Automatik aus" und „Band folgt
+TCI" sind Zustandsinfos.
+
+### Umschalter „Bandwahl der PA"
+
+Zeigt und setzt Feld 2 (`A`/`M`) — den **Zustand** der AUTO-Taste, nicht die
+konfigurierte Methode. Die Methode (F-Sense, Yaesu CAT, KX2/KX3, JUMA-TRX2,
+FT-817, Manual) steht in der Gerätekonfiguration und taucht in der
+Statusmeldung gar nicht auf.
+
+`Auto` schickt `=A`. Für `Manuell` gibt es kein eigenes Kommando — die Firmware
+schickt dafür `=B<aktuelles Band>`: laut Manual ist das eine manuelle Bandwahl,
+sie schaltet `A` nach `M`, ohne das Band zu ändern.
+
+Der Umschalter ist **gesperrt, solange die TCI-Bandwahl läuft**, und die
+Firmware weist den Befehl dann zusätzlich ab. Dort bestimmt der ESP32 das Band
+und hält die PA aktiv auf `M` — die beiden dürfen sich die Bandwahl nicht
+teilen. Ist die TCI-Bandwahl aus, steht `A` und `M` frei zur Wahl.
+
+---
+
+## Bandautomatik über TCI
+
+TCI ist nicht auf ExpertSDR festgelegt — **deskHPSDR** und **Thetis** sprechen
+es ebenfalls, und die Ports unterscheiden sich (ExpertSDR3 40001, deskHPSDR
+50002). Host und Port sind deshalb frei einstellbar.
+
+Ausgewertet werden:
+
+| Nachricht | Verwendung |
+|---|---|
+| `vfo:0,0,<hz>;` | Empfangsfrequenz, Primärquelle |
+| `dds:0,<hz>;` + `if:0,0,<offset>;` | Fallback, solange kein `vfo` gesehen wurde |
+| `trx:0,<bool>;` | TX-Zustand, sperrt den Bandwechsel |
+
+Die Automatik ist nach einem Reset **aus** (fail-safe) und wird im Dashboard
+eingeschaltet; der Zustand liegt in NVS.
+
+1. QRG kommt per TCI.
+2. **Settle-Time 150 ms** — erst senden, wenn die QRG stabil steht, sonst feuert
+   jedes Drehen über eine Bandgrenze ein Bandkommando.
+3. Deckt die PA das Band nicht ab (6 m, 4 m, 2 m, 60 m, LF/MF), geht **kein**
+   `=Bn` raus; das Dashboard sagt warum.
+4. **Während TX wird nie umgeschaltet** — weder wenn TCI `trx:0,true` meldet
+   noch wenn die PA selbst TX anzeigt. Der Wechsel wird nachgeholt.
+5. Gesendet wird nur, wenn die PA ein anderes Band meldet als das Ziel. Das
+   zieht auch nach, wenn die PA zwischendurch aus war.
+6. Meldet die PA `A`, holt der ESP32 sie mit einem `=Bn` auf das laufende Band
+   zurück nach `M` — sonst zöge F-Sense sie irgendwann woanders hin. Höchstens
+   dreimal im 5-s-Abstand; nimmt die PA es nicht an, wird das gemeldet statt
+   endlos gefeuert.
+
+### Fallback bei TCI-Verlust
+
+`=Bn` ist eine *manuelle* Bandwahl und schaltet die PA dabei von `A` nach `M`.
+Die PA fällt bei einem TCI-Ausfall deshalb **nicht** von selbst auf ihre eigene
+Bandwahl zurück, sondern bleibt auf dem zuletzt kommandierten Band stehen.
+
+Der Schalter **„Bei TCI-Verlust auf Automatik der PA"** (`tcilosta 1`) schickt
+15 s nach dem Abriss ein `=A`. **Welche Methode** dann greift, steht in der
+Konfiguration der PA; steht sie dort auf `Manual`, bringt `=A` nichts.
+
+Die 15 s liegen bewusst über dem 5-s-Reconnect, damit ein kurzer Aussetzer die
+PA nicht umstellt. Gesendet wird einmal pro Abriss, nur wenn TCI vorher
+verbunden war, nur wenn die PA online ist und **nicht** während TX. Kommt TCI
+zurück, setzt das nächste `=Bn` die PA wieder auf `M`.
+
+### Zwei Fallstricke bei TCI
+
+**`Sec-WebSocket-Protocol` leeren.** `arduinoWebSockets` schickt per Default
+`Sec-WebSocket-Protocol: arduino`. deskHPSDR schließt die Verbindung daraufhin
+**wortlos** — kein HTTP-Fehler, nur ein TCP-Abbau, der sich als `TIME_WAIT`
+zeigt. Isoliert nachgemessen:
+
+```
+nur Standard-Header                  -> HTTP/1.1 101 Switching Protocols
++ Sec-WebSocket-Protocol: arduino    -> (keine Antwort)
++ Origin: file://                    -> HTTP/1.1 101 Switching Protocols
++ User-Agent: arduino-...            -> HTTP/1.1 101 Switching Protocols
+```
+
+TCI kennt kein Subprotokoll, deshalb ruft `tci.cpp` `ws.begin(host, port, "/", "")`
+mit leerem vierten Argument auf. Ohne das verbindet der Client **nie**, und der
+Fehler sieht von außen wie ein Netz- oder Firewallproblem aus.
+
+**Ein Client kann TX nicht stoppen.** Naheliegend wäre, bei hohem SWR oder
+einem Alarm den Transceiver per TCI aus dem Sendebetrieb zu holen. Gegen
+deskHPSDR mit laufendem, lokal getastetem TX gemessen:
+
+```
+trx:0,false;         -> keine Wirkung, Server antwortet mit trx:0,true
+trx:0,false,tci;     -> keine Wirkung
+trx:0,0;             -> keine Wirkung
+tx_enable:0,false;   -> keine Wirkung
+```
+
+Der Server *liest* das Kommando — er antwortet unmittelbar mit dem aktuellen
+Zustand — und lehnt es ab. Vernünftig: ein fremder Prozess soll einem nicht die
+Taste wegnehmen können.
+
+`tools/mock-tci.py` ist ein minimaler TCI-Server zum Testen ohne SDR-Software.
+`tools/tci-trx-test.py` und `tools/tci-stop-variants.py` prüfen die Frage oben
+gegen die eigene Software nach; beide senden nie etwas, das TX *einschaltet*.
+
+---
+
+## Fehlerverhalten
+
+Grundsatz: bei jeder Störung wird **nichts geschaltet**, statt zu raten.
+
+| Störung | Verhalten |
+|---|---|
+| TCI-Software beendet | Retry alle 5 s, endlos. Kein `=Bn`, die PA bleibt auf ihrem Band. QRG und TX-Zustand werden **verworfen**, nicht eingefroren |
+| WLAN weg | ESP32 verbindet selbst neu; die PA wird weiter gepollt, der Serial-Teil hängt nicht am Netz |
+| ESP32 startet neu | Poll bricht ab → die PA fällt nach 5 s auf STANDBY, sofern sie *per Fernsteuerung* auf OPERATE stand. Vom Frontpanel gesetztes OPERATE bleibt |
+| PA aus / Kabel ab | Nach 3 s `OFFLINE`, keine Bandkommandos, erholt sich selbst |
+| Band nicht abgedeckt | Kein `=Bn`, PA bleibt auf dem alten Band, Hinweis erklärt es |
+| TX aktiv | Bandwechsel wird zurückgestellt und nachgeholt, sobald TX endet |
+| Alarm der PA | Wird angezeigt, **nicht** automatisch quittiert |
+| Hauptschleife hängt | Task-Watchdog (20 s) startet neu |
+
+Beim TCI-Abbruch werden QRG und TX-Zustand bewusst zurückgesetzt. Sonst würde
+ein eingefrorenes `tx = true` — Abbruch mitten im Senden — den Bandwechsel nach
+dem Reconnect **dauerhaft** blockieren. Der Server schickt beim Verbinden ohnehin
+den kompletten Zustand neu.
+
+---
+
+## Protokoll der PA
+
+Kommandos in ASCII, terminiert mit `\n\r` (0x0A 0x0D):
+
+| | |
+|---|---|
+| `=R` | Status abfragen |
+| `=O` / `=S` | OPERATE / STANDBY |
+| `=A` | automatische Bandwahl der PA |
+| `=Bn` | Band, n = 1 (160 m) … 9 (10 m) |
+| `=Gn` | Abschwächer, n = 1…4 |
+| `=C` | Alarm quittieren |
+| `=Pn` | Power off, n = 0 ohne / 1 mit Zustandsspeicherung |
+
+Antwort auf `=R`, **13** Felder, z. B. `O:A:T:C: 5:1:1.0:14.09: 8.1: 27.2: 26:0: 0`:
+
+| # | Wert | Bedeutung |
+|---|---|---|
+| 1 | `O`/`S` | Operate / Standby |
+| 2 | `A`/`M` | Bandwahl automatisch / manuell |
+| 3 | `T`/`R` | Transmit / Receive |
+| 4 | `C`/`F` | Temperaturskala |
+| 5 | 1–9, 10 | Band, 10 = unknown |
+| 6 | 1–4 | Abschwächer: G1 = 6 dB, G2 = 4 dB, G3 = 2 dB, G4 = 0 dB |
+| 7 | n.n | VSWR |
+| 8 | nn.nn | Versorgungsspannung |
+| 9 | nn.n | Strom |
+| 10 | nnn.n | Ausgangsleistung |
+| 11 | nnn | Temperatur |
+| 12 | 0–3 | Lüfter: aus / langsam / mittel / schnell |
+| 13 | **HH** | Alarme, **hexadezimal** |
+
+Alarmbits: 0 High SWR · 1 Over-Current · 2 High Temperature · 3 High Voltage ·
+4 Low Voltage Pre-Limit · 5 Low Voltage Final Limit.
+
+### Drei Dinge, die das Manual so nicht hergibt
+
+**Feld 13 ist hexadezimal.** Wer es dezimal liest, dekodiert ab `0x0A` falsch:
+`10` (Low Voltage Pre-Limit, Bit 4) erscheint dann als Over-Current + High
+Voltage. `tests/test_parse.cpp` prüft genau das.
+
+**Der Zeilenterminator ist drei Bytes.** Gemessen: 45 Bytes pro Zeile bei 42
+Zeichen Nutzlast, und der Hexdump endet reproduzierbar auf `0D 0A 0D`
+(CR LF CR) — nicht das dokumentierte `\n\r`. Der Parser behandelt jedes CR und
+LF als Zeilenende und verwirft Leerzeilen. Wer exakt auf `\n\r` matcht,
+verlässt sich darauf, dass die überzähligen Bytes zufällig harmlos landen.
+
+**Der Abschwächer ist pro Band gespeichert.** Beim Bandwechsel springt Feld 6
+mit — das ist kein Fehler der Firmware.
+
+Dazu zwei Punkte, die im Manual stehen, aber leicht übersehen werden: die PA
+fällt **5 s** nach einem fernbedienten `=O` von selbst auf STANDBY zurück, wenn
+keine Nachrichten mehr kommen (deshalb der 500-ms-Poll). Und Feld 6 ist ein
+**Abschwächer**, kein Verstärkungsfaktor.
+
+---
+
+## Wartung und Fehlersuche
+
+| | |
+|---|---|
+| Dashboard | `http://juma-pa.local/` — die Rohstatuszeile steht in der Kopfzeile |
+| Zustand als JSON | `curl http://juma-pa.local/api/state` |
+| Konsole | `telnet juma-pa.local`, oder `pio device monitor` über USB |
+| Flashen | `./tools/flash-wifi.sh` oder das Formular im Dashboard |
+
+### Konsolenkommandos
+
+```
+show                aktuelle Konfiguration und Zustand
+scan                WLAN-Scan
+ssid <name>         WLAN-SSID setzen
+pass <secret>       WLAN-Passwort setzen
+tci <host> [port]   TCI-Host der SDR-Software
+tcien <0|1>         TCI-Client aus/ein
+autoband <0|1>      Bandwahl per TCI aus/ein
+tcilosta <0|1>      bei TCI-Verlust =A senden
+otastby <0|1>       vor dem Firmware-Update =S an die PA
+sel <a|m>           Bandwahl der PA auf Automatik / Manuell
+save                speichern und neu starten
+reboot              nur neu starten
+pa <kdo>            Rohkommando an die PA, z.B.  pa =R
+raw                 letzte Statuszeile der PA
+```
+
+`show` zählt empfangene **Bytes** getrennt von verstandenen Zeilen und zeigt die
+letzten Rohbytes als Hex. Damit lässt sich die Verkabelung eingrenzen:
+
+| Anzeige | Bedeutung |
+|---|---|
+| `Bytes 0` | es kommt gar nichts — PA aus, Remote-Mode nicht gesetzt, oder Tip/Ring vertauscht |
+| `Bytes > 0`, `Zeilen ok 0`, Hex sieht wie Müll aus | Baudrate oder Framing falsch |
+| `Bytes > 0`, `verworfen > 0` | Verkabelung stimmt, aber die Antwort ist keine Statuszeile |
+
+### Firmware-Update über WLAN
+
+`espota`/ArduinoOTA öffnet auf dem **Host** einen Listener und lässt das
+**Gerät zurückverbinden**. In segmentierten Netzen scheitert das: die
+Authentifizierung auf Port 3232 klappt, danach kommt `No response from device`.
+
+Deshalb nimmt der ESP32 die Firmware zusätzlich selbst per `POST /update` an
+(`Update.h`, Basic-Auth `admin`):
+
+```sh
+curl -u admin:$JUMA_OTA_PASS -F firmware=@.pio/build/esp32dev/firmware.bin \
+     http://juma-pa.local/update
+```
+
+Das läuft in der Richtung Host → Gerät und ist von der Netztrennung unabhängig.
+mDNS (`juma-pa.local`) löst über Segmentgrenzen ebenfalls nicht auf, dort die IP
+eintragen. `[env:ota]` in der `platformio.ini` bleibt für den Fall, dass im
+selben Segment geflasht wird.
+
+Vor dem Schreiben schickt die Firmware der PA ein `=S` — während des Flashens
+läuft `loop()` nicht. **Abschaltbar** per `otastby 0`: bei häufigen
+Entwicklungs-Uploads nimmt es sonst jedes Mal die Betriebsart weg.
+
+---
+
+## Entwicklung
+
+| Datei | Inhalt |
+|---|---|
+| `include/config.h` | Pins, Timings, Passwörter, `FW_VERSION` |
+| `src/juma_status.h/.cpp` | Statusparser, Arduino-frei → auf dem Host testbar |
+| `src/juma.h/.cpp` | Serial-Treiber: Poll, Kommando-Queue, Zeilenzerlegung |
+| `src/bands.h/.cpp` | Frequenz → JUMA-Bandindex |
+| `src/tci.h/.cpp` | TCI-Client, liefert QRG und TX-Zustand |
+| `src/web.h/.cpp` | HTTP + WebSocket-Server, Settings in NVS, OTA-Endpunkt |
+| `src/console.h/.cpp` | Konsole auf UART0 und Telnet :23 |
+| `src/index_html.h` | Dashboard, eine Datei, PROGMEM |
+| `src/main.cpp` | Bandcontroller, Watchdog, mDNS, Verdrahtung |
+| `tests/test_parse.cpp` | 102 Checks für Statusparser und Bandzuordnung |
+
+`./tests/run.sh` läuft auf dem Host und braucht keinen ESP32 — der Statusparser
+und die Bandzuordnung sind bewusst frei von Arduino-Abhängigkeiten.
+
+### Zwei Stolpersteine der Plattform
+
+**`WiFi.setSleep(false)` muss NACH `WiFi.begin()` stehen.** Davor gesetzt wird
+es beim Verbinden wieder verworfen. Mit aktivem Modem-Sleep wartet jeder
+Roundtrip auf das nächste Beacon:
+
+| | mit Sleep | ohne |
+|---|---|---|
+| Seite (24 kB) | 6–20 s, teils abgebrochen | **0,19–0,35 s** |
+| Durchsatz | ~1,2 kB/s | ~100 kB/s |
+| `/api/state` | 26–80 ms | 26–80 ms |
+
+Dass die kleine JSON-Antwort *nicht* langsamer war, ist der entscheidende
+Hinweis: ein Roundtrip kostete ein Beacon-Intervall, viele Roundtrips fielen
+entsprechend ins Gewicht.
+
+**`WEBSOCKETS_SERVER_CLIENT_MAX` ist per Default 5.** Jeder Tab und jeder Reload
+belegt einen Platz, und Verbindungen, die der Browser nicht sauber geschlossen
+hat, bleiben stehen. Sind alle Plätze mit solchen Leichen belegt, lädt die Seite
+noch, bekommt aber keine Daten mehr — das sieht aus wie ein Hänger. Deshalb 8
+Plätze plus `enableHeartbeat(15000, 3000, 2)`, und die Seite sagt bei
+Verbindungsverlust deutlich Bescheid, statt still auf alten Werten einzufrieren.
+
+---
+
+## Bewusst nicht gebaut
+
+**Schutzabschaltung.** Die PA hat eine eigene SWR-Abschaltung, einen
+unabhängigen Überstromtrip (MAX4373, 24 A) und Temperatur- sowie
+Spannungsalarme. Eine zweite Schicht darüber bringt nichts — und über TCI ließe
+sie sich ohnehin nicht durchsetzen, siehe oben.
+
+**PTT über den ESP32.** Reizvoll, weil es die Keyline zwischen TRX und PA sparen
+würde, und elektrisch trivial: laut Manual wird die PA „by simply grounding the
+tip" der T/R-Buchse getastet, ein Optokoppler am GPIO genügt. Der Blocker ist
+die **Einschaltflanke** — `trx:0,true` ist eine Meldung über einen bereits
+laufenden Wechsel, kein Vorlauf. Selbst bei null Latenz käme das PTT
+gleichzeitig oder zu spät, und der Verstärker schaltet heiß. Das ginge nur mit
+einer TX-Verzögerung in der SDR-Software, die über dem Worst Case liegt. Die
+Ausschaltflanke wäre unkritisch, zu spät ist dort die sichere Richtung.
+
+In einem normalen 2,4-GHz-Heimnetz gemessen (300 Pakete): Median 9,6 ms,
+p99 25,8 ms, Maximum 26,8 ms, keines über 50 ms. Brauchbar — aber eine
+Stichprobe dieser Länge beweist den Schwanz der Verteilung nicht, und genau die
+seltenen Ausreißer zerlegen Relais. Der risikofreie Weg wäre, die ESP32-PTT
+parallel zur bestehenden Leitung zu legen und dem ESP32 zusätzlich einen Eingang
+auf die echte Leitung zu geben: dann misst er über Wochen selbst, ob er zu spät
+gekommen wäre, während die Drahtbrücke weiter die Arbeit macht.
+
+---
+
+## Lizenz
+
+MIT — siehe [LICENSE](LICENSE).
+
+Keine Verbindung zu Juma Radio; „JUMA" und „PA-100D" gehören ihren jeweiligen
+Inhabern. Die Protokollangaben stammen aus dem offiziellen
+[PA100-D Operating Manual v4.00a](https://www.jumaradio.com/juma-pa100/).
