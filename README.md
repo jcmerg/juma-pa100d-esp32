@@ -232,7 +232,7 @@ steht, was im Betrieb gebraucht wird.
 | Anzeige | Bereich | warn ab | hoch ab | Darstellung |
 |---|---|---|---|---|
 | RF | 0–150 W | 100 | 120 | Segmentbalken, 36 Segmente |
-| VSWR | 1–3 | 1,5 | 2 | Segmentbalken |
+| VSWR | 1–3 | einstellbar, Vorgabe 2,0 | einstellbar, Vorgabe 2,5 | Segmentbalken |
 | PA Temp | 20–80 °C | 50 | 60 | Rundanzeige, 180° |
 | Lüfter | 4 Stufen | Mittel | Schnell | Rundanzeige mit Stufentext |
 | Spannung | 10–15,5 V | < 11,2 / > 14,0 | < 11,0 / > 14,8 | Rundanzeige |
@@ -311,7 +311,13 @@ auch wenn die PA noch keinen Alarm meldet. Schwelle und Rotzone sind in den
 Einstellungen konfigurierbar (`tempwarn`, `temphigh`, `tempalarm`), Vorgabe
 50 ° und 60 °.
 
-Diese drei wirken **sofort**, ohne „Speichern & neu starten" — genau wie die
+Dasselbe gilt für das SWR: die Abschaltgrenze der PA ist werksseitig **3,0**
+(einstellbar 1,0–10,0) und steht ebenfalls nicht in der Statusmeldung. Warnung
+und Rotzone sind über `swrwarn`, `swrhigh` und `swralarm` einstellbar, Vorgabe
+2,0 und 2,5. Im Empfang meldet die PA 0,0 — die Warnung greift also nur beim
+Senden, und das Alarmbit der PA käme erst beim Auslösen der Abschaltung.
+
+Diese Einstellungen wirken **sofort**, ohne „Speichern & neu starten" — genau wie die
 Bedienelemente im Hauptbild. Sie brauchen keinen Neustart, und ein Schalter,
 der erst durch einen weit entfernten Speichern-Knopf wirksam wird, sieht aus,
 als täte er nichts. Dasselbe gilt für „Vor dem Update auf STANDBY".

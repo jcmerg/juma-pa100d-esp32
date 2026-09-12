@@ -241,6 +241,15 @@ input[type=file]{padding:7px}
       <div style="flex:1"><label data-t="lTempHigh"></label>
         <input name="temphigh" id="temphigh" inputmode="numeric"></div></div>
     <div class="hint" data-t="tempHint"></div>
+    <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:14px"></div>
+    <div class="row" style="margin:0 0 10px">
+      <span class="sw" id="swralarm"><i></i><span data-t="lSwrAlarm"></span></span></div>
+    <div class="row">
+      <div style="flex:1"><label data-t="lSwrWarn"></label>
+        <input id="swrwarn" inputmode="decimal"></div>
+      <div style="flex:1"><label data-t="lSwrHigh"></label>
+        <input id="swrhigh" inputmode="decimal"></div></div>
+    <div class="hint" data-t="swrHint"></div>
   </div>
 
   <div class="sec"><label data-t="alHdr"></label>
@@ -281,7 +290,7 @@ fans:["Aus","Langsam","Mittel","Schnell"],
 alarms:["SWR zu hoch","Überstrom","Übertemperatur","Überspannung",
         "Unterspannung Vorwarnung","Unterspannung Abschaltung"],
 auto:"Automatik",manual:"Manuell",selConflict:"PA wählt selbst, obwohl TCI-Bandwahl an ist",selLocked:"Bei aktiver TCI-Bandwahl bestimmt der ESP32 das Band und hält die PA auf Manuell.",cels:"Celsius",fahr:"Fahrenheit",
-tNorm:"normal",tWarm:"warm",tHot:"zu heiß",tooHot:"Temperatur %s°",lTempWarn:"Warnung ab (°)",lTempHigh:"Rot ab (°)",lTempAlarm:"Temperatur-Vorwarnung",tempHint:"Wirkt sofort, ohne Speichern. Die PA setzt ihr Alarmbit erst beim Abschalten — dann bleibt keine Zeit mehr. Diese Warnung schlägt vorher an, mit demselben Ton und Banner. Sinnvoll ist ein Wert deutlich unter der Abschaltgrenze des Geräts (Werksvorgabe 70°, einstellbar 50–100°).",unitStep:"Stufe",
+tNorm:"normal",tWarm:"warm",tHot:"zu heiß",tooHot:"Temperatur %s°",badSwr:"SWR %s",lSwrAlarm:"SWR-Vorwarnung",lSwrWarn:"Warnung ab",lSwrHigh:"Rot ab",swrHint:"Wirkt sofort. Die Abschaltgrenze der PA ist werksseitig 3,0 (einstellbar 1,0–10,0) und steht nicht in der Statusmeldung — hier den eigenen Wert eintragen und darunter warnen lassen. Im Empfang meldet die PA 0,0, die Warnung greift also nur beim Senden.",lTempWarn:"Warnung ab (°)",lTempHigh:"Rot ab (°)",lTempAlarm:"Temperatur-Vorwarnung",tempHint:"Wirkt sofort, ohne Speichern. Die PA setzt ihr Alarmbit erst beim Abschalten — dann bleibt keine Zeit mehr. Diese Warnung schlägt vorher an, mit demselben Ton und Banner. Sinnvoll ist ein Wert deutlich unter der Abschaltgrenze des Geräts (Werksvorgabe 70°, einstellbar 50–100°).",unitStep:"Stufe",
 running:"Läuft: ",noFile:"keine Datei gewählt",auth:"Anmeldung…",loading:"lade %s kB…",
 upOk:"OK — Gerät startet neu",upErr:"Fehler %s",upAbort:"Übertragung abgebrochen",
 saving:"speichere…",restarting:"Gerät startet neu",saved:"Gespeichert — Gerät startet neu",wsLost:"Verbindung zum Gerät unterbrochen — versuche erneut…",
@@ -310,7 +319,7 @@ fans:["Off","Slow","Medium","Fast"],
 alarms:["High SWR","Over-current","High temperature","High voltage",
         "Low voltage pre-limit","Low voltage final limit"],
 auto:"Automatic",manual:"Manual",selConflict:"PA selects on its own while TCI band select is on",selLocked:"With TCI band select on, the ESP32 determines the band and holds the PA on Manual.",cels:"Celsius",fahr:"Fahrenheit",
-tNorm:"normal",tWarm:"warm",tHot:"too hot",tooHot:"temperature %s°",lTempWarn:"Warn above (°)",lTempHigh:"Red above (°)",lTempAlarm:"Temperature pre-warning",tempHint:"Applies immediately, no saving needed. The PA only sets its alarm bit when it shuts down — too late to react. This warning trips earlier, with the same tone and banner. Pick a value well below the unit\u2019s cut-out (factory default 70°, adjustable 50–100°).",unitStep:"Step",
+tNorm:"normal",tWarm:"warm",tHot:"too hot",tooHot:"temperature %s°",badSwr:"SWR %s",lSwrAlarm:"SWR pre-warning",lSwrWarn:"Warn above",lSwrHigh:"Red above",swrHint:"Applies immediately. The unit\u2019s trip limit is 3.0 by default (adjustable 1.0–10.0) and is not part of the status message — enter your own value and warn below it. While receiving the PA reports 0.0, so the warning only applies during transmit.",lTempWarn:"Warn above (°)",lTempHigh:"Red above (°)",lTempAlarm:"Temperature pre-warning",tempHint:"Applies immediately, no saving needed. The PA only sets its alarm bit when it shuts down — too late to react. This warning trips earlier, with the same tone and banner. Pick a value well below the unit\u2019s cut-out (factory default 70°, adjustable 50–100°).",unitStep:"Step",
 running:"Running: ",noFile:"no file selected",auth:"Authenticating…",loading:"uploading %s kB…",
 upOk:"OK — device restarting",upErr:"Error %s",upAbort:"transfer aborted",
 saving:"saving…",restarting:"device restarting",saved:"Saved — device restarting",wsLost:"Connection to the device lost — retrying…",
@@ -369,8 +378,14 @@ function setLevel(el,val,dec){
   segs.forEach((s,i)=>{s.style.background=i<lit?segColor(o,i):C.off});
   n.style.color=!ok?"var(--dim)":val>=o.high?C.bad:val>=o.warn?C.warn:"var(--fg)";
 }
-mkLevel($("lRf"), {label:"RF",   min:0, max:150, warn:100, high:120, unit:" W"});
-mkLevel($("lSwr"),{label:"VSWR", min:1, max:3,   warn:1.5, high:2,   unit:""});
+// Die SWR-Zonen kommen aus den Einstellungen - die Abschaltgrenze der PA
+// (Werksvorgabe 3.0) steht nicht in der Statusmeldung.
+let SWRWARN=2.0,SWRHIGH=2.5;
+function buildLevels(){
+  mkLevel($("lRf"), {label:"RF",   min:0, max:150, warn:100, high:120, unit:" W"});
+  mkLevel($("lSwr"),{label:"VSWR", min:1, max:3, warn:SWRWARN, high:SWRHIGH, unit:""});
+}
+buildLevels();
 
 // --- Rundanzeigen: 180-Grad-Bogen mit Zonenfarben -------------------------
 const GA1=180,GR=40,GCX=50,GCY=47;
@@ -475,6 +490,15 @@ function liveSwitch(id,cmd){
 }
 liveSwitch("otastby","otastby");
 liveSwitch("tempalarm","tempalarm");
+liveSwitch("swralarm","swralarm");
+// als Zehntel senden, damit der Befehl ganzzahlig bleibt
+["swrwarn","swrhigh"].forEach(function(id){
+  $(id).onchange=function(){
+    const v=Math.round(parseFloat(this.value.replace(",","."))*10);
+    if(v>=10&&v<=100)send(id,v);
+    else this.value=(st[id==="swrwarn"?"swrWarn":"swrHigh"]||0).toFixed(1);
+  };
+});
 ["tempwarn","temphigh"].forEach(function(id){
   $(id).onchange=function(){
     const v=parseInt(this.value,10);
@@ -524,7 +548,7 @@ x.onerror=function(){$("fwSt").textContent=t("upAbort")};x.send(fd);
 // "secure context" (HTTPS oder localhost) - ueber http:// auf eine LAN-IP ist
 // sie im Browser gar nicht vorhanden. Deshalb ist der Ton in der Seite die
 // Basis, Notifications kommen nur obendrauf, wenn der Browser sie hergibt.
-let ac=null,beepT=null,titleT=null,muted=false,lastAl=0,lastHot=0,tCelCur=0;
+let ac=null,beepT=null,titleT=null,muted=false,lastAl=0,lastHot=0,lastBad=0,tCelCur=0;
 const origTitle=document.title;
 let sound=localStorage.getItem("sound")!=="0";
 
@@ -557,11 +581,12 @@ function notify(txt){
   try{new Notification(t("alarmTitle"),
       {body:t("alarmBody",txt),tag:"juma-alarm",renotify:true})}catch(e){}
 }
-function alarmOn(mask,hot){
+function alarmOn(mask,hot,swr){
   $("ab2").className="alarmbar on";
   document.body.classList.add("alarm");
   let txt=alarmNames(mask);
   if(hot)txt=(txt?txt+", ":"")+t("tooHot",hot);
+  if(swr)txt=(txt?txt+", ":"")+t("badSwr",swr.toFixed(1));
   $("abTxt").textContent=t("alarmBody",txt);
   if(!titleT)titleT=setInterval(function(){
     document.title=document.title===origTitle?"\u26A0 "+t("alarmTitle"):origTitle},1200);
@@ -657,6 +682,9 @@ function render(s){st=s;
 if(s.tempWarn&&(s.tempWarn!==TWARN||s.tempHigh!==THIGH)){
   TWARN=s.tempWarn; THIGH=s.tempHigh; buildGauges();
 }
+if(s.swrWarn&&(s.swrWarn!==SWRWARN||s.swrHigh!==SWRHIGH)){
+  SWRWARN=s.swrWarn; SWRHIGH=s.swrHigh; buildLevels();
+}
 $("dPa").className="dot"+(s.online?" on":"");
 $("dTci").className="dot"+(s.tciConn?" on":"");
 $("tciQrg").textContent=s.tciHz?(s.tciHz/1e6).toFixed(4)+" MHz "+s.tciBandName:"-";
@@ -728,13 +756,16 @@ d.className=hit?"hit":"";d.firstChild.style.background=hit?C.bad:C.sw});
 // Die PA setzt ihr Alarmbit erst beim Abschalten - dann ist es zu spaet.
 // Deshalb warnt das Dashboard schon an der eigenen Schwelle.
 const hot=(s.tempAlarm&&s.online&&tCelCur>=TWARN)?s.temp:0;
-if(s.alarms||hot){
-  alarmOn(s.alarms,hot);
+// SWR ist nur beim Senden aussagekraeftig - im Empfang meldet die PA 0.0
+const bad=(s.swrAlarm&&s.online&&s.swr>0&&s.swr>=SWRWARN)?s.swr:0;
+if(s.alarms||hot||bad){
+  alarmOn(s.alarms,hot,bad);
   const neu=s.alarms&~lastAl;
   if(neu)notify(alarmNames(neu));
   else if(hot&&!lastHot)notify(t("tooHot",hot));
-}else if(lastAl||lastHot){alarmOff()}
-lastAl=s.alarms; lastHot=hot;
+  else if(bad&&!lastBad)notify(t("badSwr",bad.toFixed(1)));
+}else if(lastAl||lastHot||lastBad){alarmOff()}
+lastAl=s.alarms; lastHot=hot; lastBad=bad;
 
 $("ab").className="sw"+(s.autoband?" on":"");
 $("raw").textContent=s.raw;
@@ -749,7 +780,10 @@ if(!$("panel").classList.contains("on")){
   $("tcilosta").className="sw"+(s.tciLostAuto?" on":"");
   $("tempalarm").className="sw"+(s.tempAlarm?" on":"");
   $("tempwarn").value=s.tempWarn;
-  $("temphigh").value=s.tempHigh}}
+  $("temphigh").value=s.tempHigh;
+  $("swralarm").className="sw"+(s.swrAlarm?" on":"");
+  $("swrwarn").value=(s.swrWarn||0).toFixed(1);
+  $("swrhigh").value=(s.swrHigh||0).toFixed(1)}}
 
 applyLang();
 // Ein stehengebliebenes Dashboard mit alten Werten sieht aus wie ein Hänger -

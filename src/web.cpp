@@ -76,6 +76,9 @@ void settingsLoad() {
     cfg.tempWarn  = prefs.getUChar("tempwarn", 50);
     cfg.tempHigh  = prefs.getUChar("temphigh", 60);
     cfg.tempAlarm = prefs.getBool("tempalarm", true);
+    cfg.swrWarnX10 = prefs.getUChar("swrwarn", 20);
+    cfg.swrHighX10 = prefs.getUChar("swrhigh", 25);
+    cfg.swrAlarm   = prefs.getBool("swralarm", true);
     prefs.end();
 }
 
@@ -93,6 +96,9 @@ void settingsSave() {
     prefs.putUChar("tempwarn", cfg.tempWarn);
     prefs.putUChar("temphigh", cfg.tempHigh);
     prefs.putBool("tempalarm", cfg.tempAlarm);
+    prefs.putUChar("swrwarn", cfg.swrWarnX10);
+    prefs.putUChar("swrhigh", cfg.swrHighX10);
+    prefs.putBool("swralarm", cfg.swrAlarm);
     prefs.end();
 }
 
@@ -131,6 +137,9 @@ static void buildState() {
     d["tempWarn"]  = cfg.tempWarn;
     d["tempHigh"]  = cfg.tempHigh;
     d["tempAlarm"] = cfg.tempAlarm;
+    d["swrWarn"]   = cfg.swrWarnX10 / 10.0f;
+    d["swrHigh"]   = cfg.swrHighX10 / 10.0f;
+    d["swrAlarm"]  = cfg.swrAlarm;
     d["ssid"]    = cfg.ssid;
     d["hostname"] = cfg.hostname;
     d["note"]    = noteCode;
@@ -197,6 +206,16 @@ static void handleCmd(const char* text) {
         }
     }
     else if (name == "tempalarm") { cfg.tempAlarm  = (v != 0); settingsSave(); }
+    // SWR kommt als Zehntel herein, damit der Befehl ganzzahlig bleibt
+    else if (name == "swrwarn" || name == "swrhigh") {
+        if (v >= 10 && v <= 100) {
+            if (name == "swrwarn") cfg.swrWarnX10 = (uint8_t)v;
+            else                   cfg.swrHighX10 = (uint8_t)v;
+            if (cfg.swrHighX10 < cfg.swrWarnX10) cfg.swrHighX10 = cfg.swrWarnX10;
+            settingsSave();
+        }
+    }
+    else if (name == "swralarm") { cfg.swrAlarm = (v != 0); settingsSave(); }
     else if (name == "otastby")   { cfg.otaStandby = (v != 0); settingsSave(); }
     else if (name == "autoband") {
         cfg.autoband = (v != 0);

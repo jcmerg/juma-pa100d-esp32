@@ -43,6 +43,9 @@ static void help() {
         "  tempwarn <grad>     Vorwarnung ab dieser Temperatur\n"
         "  temphigh <grad>     ab hier rot in der Anzeige\n"
         "  tempalarm <0|1>     Vorwarnung aus/ein\n"
+        "  swrwarn <wert>      SWR-Vorwarnung ab diesem Wert\n"
+        "  swrhigh <wert>      SWR ab hier rot in der Anzeige\n"
+        "  swralarm <0|1>      SWR-Vorwarnung aus/ein\n"
         "  sel <a|m>           Bandwahl der PA auf Automatik / Manuell\n"
         "  save                speichern und neu starten\n"
         "  reboot              nur neu starten\n"
@@ -79,6 +82,9 @@ static void show() {
 
     io->printf("Temperatur Warnung ab %u, rot ab %u Grad, Vorwarnung %s\n",
                   cfg.tempWarn, cfg.tempHigh, cfg.tempAlarm ? "ein" : "aus");
+    io->printf("SWR        Warnung ab %.1f, rot ab %.1f, Vorwarnung %s\n",
+                  cfg.swrWarnX10 / 10.0f, cfg.swrHighX10 / 10.0f,
+                  cfg.swrAlarm ? "ein" : "aus");
     io->printf("Bandwahl  per TCI %s   STANDBY vor Update: %s   =A bei TCI-Verlust: %s\n",
                   cfg.autoband ? "ein" : "aus", cfg.otaStandby ? "ja" : "nein",
                   cfg.tciLostAuto ? "ja" : "nein");
@@ -233,6 +239,26 @@ static void dispatch(char* s) {
         settingsSave();
         io->printf("Temperatur: Warnung ab %u, rot ab %u Grad (gespeichert)\n",
                       cfg.tempWarn, cfg.tempHigh);
+        return;
+    }
+
+    if (!strcmp(cmd, "swrwarn") || !strcmp(cmd, "swrhigh")) {
+        if (!arg) { io->println(F("Beispiel: swrwarn 2.0")); return; }
+        float f = atof(arg);
+        if (f < 1.0f || f > 10.0f) { io->println(F("nur 1.0..10.0")); return; }
+        uint8_t x = (uint8_t)(f * 10.0f + 0.5f);
+        if (cmd[3] == 'w') cfg.swrWarnX10 = x; else cfg.swrHighX10 = x;
+        if (cfg.swrHighX10 < cfg.swrWarnX10) cfg.swrHighX10 = cfg.swrWarnX10;
+        settingsSave();
+        io->printf("SWR: Warnung ab %.1f, rot ab %.1f (gespeichert)\n",
+                      cfg.swrWarnX10 / 10.0f, cfg.swrHighX10 / 10.0f);
+        return;
+    }
+
+    if (!strcmp(cmd, "swralarm")) {
+        cfg.swrAlarm = (arg && atoi(arg) != 0);
+        settingsSave();
+        io->printf("SWR-Vorwarnung: %s (gespeichert)\n", cfg.swrAlarm ? "ein" : "aus");
         return;
     }
 

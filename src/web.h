@@ -17,6 +17,12 @@ struct Settings {
     uint8_t  tempHigh  = 60;     // Grad C: ab hier rot in der Anzeige
     bool     tempAlarm = true;   // Warnung ueberhaupt ausloesen
 
+    // Dasselbe fuer das SWR. Die Abschaltgrenze der PA (Werksvorgabe 3.0,
+    // einstellbar 1.0-10.0) steht ebenfalls nicht in der Statusmeldung.
+    uint8_t  swrWarnX10  = 20;   // 2.0 - ab hier Warnung
+    uint8_t  swrHighX10  = 25;   // 2.5 - ab hier rot in der Anzeige
+    bool     swrAlarm    = true;
+
     bool     tciLostAuto = false;// bei TCI-Verlust "=A": PA waehlt wieder selbst
 };
 
