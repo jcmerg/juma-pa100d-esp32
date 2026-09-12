@@ -16,14 +16,27 @@ SDR-Software ──TCI (WebSocket)──► ESP32 ──UART2──► MAX3232 �
 - alle 13 Statusfelder der PA live im Browser, Pegelbalken und Rundanzeigen
 - Bandwahl folgt der QRG der SDR-Software, mit Beruhigungszeit und TX-Sperre
 - Bedienung von OPERATE/STANDBY, Band, Abschwächer und Alarmquittierung
-- Oberfläche auf Deutsch und Englisch
+- Alarm mit Ton, Banner und blinkendem Tab-Titel — die PA piepst nur vor Ort
+- Oberfläche auf Deutsch und Englisch, hell und dunkel
 - Firmware-Update über WLAN, ohne USB-Kabel am Verstärker
 - Telnet-Konsole für Konfiguration und Fehlersuche
 
+Die Screenshots zeigen echten Betrieb — 59,8 W auf 20 m, SWR 1,2, 12,3 A, und
+die Versorgung bricht unter Last von 13,68 V auf 12,98 V ein. Ersetzt sind nur
+SSID und TCI-Host.
+
 <table>
 <tr>
-<td width="50%"><a href="docs/settings-de.png"><img src="docs/settings-de.png" alt="Konfiguration"></a></td>
-<td width="50%"><a href="docs/dashboard-en.png"><img src="docs/dashboard-en.png" alt="English UI"></a></td>
+<td width="50%"><a href="docs/dashboard-light.png"><img src="docs/dashboard-light.png" alt="Helles Theme"></a></td>
+<td width="50%"><a href="docs/alarm.png"><img src="docs/alarm.png" alt="Alarm"></a></td>
+</tr>
+<tr>
+<td>Helles Theme — System, Hell oder Dunkel</td>
+<td>Alarm: Banner, Ton und blinkender Tab-Titel</td>
+</tr>
+<tr>
+<td><a href="docs/settings-de.png"><img src="docs/settings-de.png" alt="Konfiguration"></a></td>
+<td><a href="docs/dashboard-en.png"><img src="docs/dashboard-en.png" alt="English UI"></a></td>
 </tr>
 <tr>
 <td>Konfiguration hinter dem Zahnrad</td>
@@ -180,6 +193,10 @@ Drei gleichwertige Wege:
 
 Hidden SSIDs funktionieren — der ESP32 sucht sie per aktivem Scan.
 
+Der **Gerätename** ist einstellbar (Default `juma-pa`) und gilt für
+WLAN-Hostname, mDNS und OTA — das Dashboard liegt danach unter
+`http://<name>.local/`. Erlaubt sind Kleinbuchstaben, Ziffern und Bindestriche.
+
 ---
 
 ## Bedienung
@@ -196,6 +213,23 @@ steht, was im Betrieb gebraucht wird.
 | VSWR | 1–3 | 1,5 | 2 | Segmentbalken |
 | PA Temp | 20–80 °C | 50 | 60 | Rundanzeige, 180° |
 | Lüfter | 4 Stufen | Mittel | Schnell | Rundanzeige mit Stufentext |
+| Spannung | 10–15,5 V | < 11,2 / > 14,0 | < 11,0 / > 14,8 | Rundanzeige |
+| Strom | 0–24 A | 19,2 | 21,6 | Rundanzeige |
+
+Die Spannungsgrenzen sind die **Defaults der PA**: Unterspannung 11,00 V,
+Vorwarnung 11,20 V, Überspannung 14,80 V (ab 14,00 V einstellbar), Nennspannung
+13,80 V. Beim Strom nennt das Manual nur den **24-A-Hardware-Trip** des MAX4373
+— der ist auch beim geräteeigenen Zeigerinstrument der Vollausschlag. Die
+Warnzonen bei 80 % und 90 % davon sind abgeleitet. Stehen an der eigenen PA
+andere Schwellen, die Konstanten in `src/index_html.h` anpassen.
+
+Die Temperaturanzeige folgt der Einheit der PA: meldet sie `F`, wechseln
+Beschriftung und Einheit auf Fahrenheit, die Zonen bleiben dieselben
+Temperaturen.
+
+**Eingangsleistung gibt es nicht.** Die PA misst HF nur am Ausgang — Kanal 12
+rückwärts, Kanal 13 vorwärts, daraus Ausgangsleistung und SWR. Ein Messpunkt
+für die Ansteuerung existiert im Gerät nicht.
 
 Farben: normal `#00b33c`, warn `#ff9900`, hoch `#e60000`, unbeleuchtet
 `#595959`. Die Segmente sind nach ihrer **eigenen** Position gefärbt — der
@@ -209,12 +243,37 @@ Deutsch und Englisch, umschaltbar in den Einstellungen. Die Wahl liegt im
 Aufruf entscheidet `navigator.language`.
 
 Damit das vollständig funktioniert, schickt die Firmware **keine fertigen
-Texte**: Hinweise gehen als Code plus Argument raus (`txwait`,
+Texte**: Hinweise gehen als Code plus Argument raus (`tcidis`,
 `unsupported`+Band, `bandok`+Band …), und `/api/config` antwortet mit `saved`
 statt einem deutschen Satz.
 
 Im Wörterbuch dürfen **keine HTML-Entities** stehen — die Texte werden per
 `textContent` gesetzt, `&amp;` erschiene wörtlich.
+
+### Alarmmeldung
+
+Die PA piepst bei einem Alarm — aber nur vor Ort. Das Dashboard macht daraus:
+
+- ein rotes Banner am oberen Rand mit den betroffenen Alarmen
+- einen Alarmton, alle 5 s wiederholt, bis quittiert oder Alarm weg
+- einen blinkenden Tab-Titel, damit es auch im Hintergrund auffällt
+
+Der Ton startet erst, nachdem die Seite einmal angeklickt wurde — so verlangt es
+die Autoplay-Richtlinie der Browser. Abschaltbar in den Einstellungen.
+
+**Browser-Benachrichtigungen funktionieren über `http://` nicht.** Die
+Notification-API ist auf „secure contexts" beschränkt. Tückisch dabei: Chrome
+entfernt das `Notification`-Objekt nicht, sondern setzt die Berechtigung
+stillschweigend auf `denied` — das sieht aus, als hätte man selbst abgelehnt.
+Das Dashboard fragt deshalb `isSecureContext` ab, nennt den echten Grund und
+sperrt die Taste. Ton und Banner sind davon unabhängig.
+
+### Darstellung
+
+System, Hell oder Dunkel, umschaltbar in den Einstellungen und im
+`localStorage` gemerkt. Ohne Wahl folgt die Seite `prefers-color-scheme`. Die
+Signalfarben sind im hellen Theme leicht abgedunkelt — `#ff9900` ist auf Weiß
+als Text kaum lesbar.
 
 ### Der Hinweis unter dem Zustand
 
@@ -227,7 +286,6 @@ gar keine. `bandControl()` setzt ihn in jedem Durchlauf neu:
 | `aboff` | TCI-Bandwahl aus |
 | `tcioff` / `tcidis` | TCI-Client abgeschaltet / nicht verbunden |
 | `tcinofreq` | verbunden, aber noch keine QRG |
-| `txwait` | Bandwechsel wartet, TX aktiv |
 | `paoff` | PA antwortet nicht |
 | `unsupported` | Band wird von der PA nicht abgedeckt |
 | `bandok` / `bandset` | Band folgt TCI / wurde umgeschaltet |
@@ -433,6 +491,7 @@ keine Nachrichten mehr kommen (deshalb der 500-ms-Poll). Und Feld 6 ist ein
 ```
 show                aktuelle Konfiguration und Zustand
 scan                WLAN-Scan
+hostname <name>     Netzname für WLAN, mDNS und OTA
 ssid <name>         WLAN-SSID setzen
 pass <secret>       WLAN-Passwort setzen
 tci <host> [port]   TCI-Host der SDR-Software
@@ -530,6 +589,27 @@ Verbindungsverlust deutlich Bescheid, statt still auf alten Werten einzufrieren.
 unabhängigen Überstromtrip (MAX4373, 24 A) und Temperatur- sowie
 Spannungsalarme. Eine zweite Schicht darüber bringt nichts — und über TCI ließe
 sie sich ohnehin nicht durchsetzen, siehe oben.
+
+**HTTPS auf dem Gerät.** Technisch ginge es: die mbedTLS der Arduino-Firmware
+kann Zertifikate *schreiben* (`mbedtls_x509write_crt_pem`, `mbedtls_ecp_gen_key`
+liegen in den vorkompilierten Bibliotheken), der ESP32 könnte sich also beim
+ersten Start selbst eines erzeugen und vor Ablauf erneuern — mit einem
+EC-Schlüssel in etwa einer Sekunde, RSA-2048 dagegen kann Minuten dauern. Einen
+TLS-Server gibt es ebenfalls (`fhessel/esp32_https_server`).
+
+Dagegen sprechen drei Dinge. Der Aufwand sitzt an der falschen Stelle: von einer
+`https://`-Seite ist `ws://` Mixed Content und wird blockiert, der WebSocket
+müsste also auch auf TLS — und das kann `arduinoWebSockets` serverseitig nicht.
+Es liefe auf einen Austausch des kompletten Web-Stacks hinaus. Die Kosten sind
+spürbar: rund 35–40 kB RAM je TLS-Verbindung statt weniger kB, realistisch 2–3
+gleichzeitige Browser statt 8, Seitenaufbau 1–2 s statt 0,2 s. Und der Gewinn
+ist mager: ein selbstsigniertes Zertifikat bringt auf jedem neuen Gerät eine
+Warnseite, und Safari akzeptiert auch manuell vertraute Zertifikate nur 398 Tage.
+
+Wer HTTPS wirklich will, fährt besser mit einem hochgeladenen Zertifikat aus
+einer eigenen CA. Für Alarmierung unterwegs ist **ausgehendes** TLS der bessere
+Weg — der ESP32 als Client zu einem Push-Dienst ist eine kurze Verbindung ohne
+Stack-Umbau.
 
 **PTT über den ESP32.** Reizvoll, weil es die Keyline zwischen TRX und PA sparen
 würde, und elektrisch trivial: laut Manual wird die PA „by simply grounding the

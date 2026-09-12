@@ -67,8 +67,10 @@ static void bandControl() {
     // jedes Drehen ueber eine Bandgrenze ein Bandkommando.
     if (millis() - tci.freqSetAt() < BAND_SETTLE_MS) return;
 
-    // Niemals waehrend TX umschalten - weder laut TCI noch laut PA.
-    if (tci.tx() || s.tx)  { webSetNote("txwait");    return; }
+    // Niemals waehrend TX umschalten - weder laut TCI noch laut PA. Ohne
+    // Meldung: dass man beim Senden nicht das Band wechselt, ist selbstver-
+    // staendlich, und der Hinweis stand nur im Weg.
+    if (tci.tx() || s.tx)  { return; }
     if (!juma.online())    { webSetNote("paoff");     return; }
 
     if (s.band == target) {
@@ -100,7 +102,7 @@ static void bandControl() {
 // ---------------------------------------------------------------------------
 static void wifiBegin() {
     WiFi.mode(WIFI_STA);
-    WiFi.setHostname(HOSTNAME);
+    WiFi.setHostname(cfg.hostname.c_str());
 
     if (cfg.ssid.length()) {
         WiFi.begin(cfg.ssid.c_str(), cfg.pass.c_str());
@@ -136,7 +138,7 @@ void setup() {
     // haengen muss. Vor dem Update die PA auf STANDBY - waehrend des Flashens
     // laeuft loop() nicht, die PA wuerde ohnehin nach 5 s selbst zurueckfallen,
     // aber so ist der Zustand definiert statt abgelaufen.
-    ArduinoOTA.setHostname(HOSTNAME);
+    ArduinoOTA.setHostname(cfg.hostname.c_str());
     ArduinoOTA.setPassword(OTA_PASS);
     ArduinoOTA.onStart([]() {
         if (cfg.otaStandby) {
@@ -147,7 +149,7 @@ void setup() {
     ArduinoOTA.onError([](ota_error_t e) { Serial.printf("OTA-Fehler %u\n", e); });
     ArduinoOTA.begin();
 
-    if (MDNS.begin(HOSTNAME)) {
+    if (MDNS.begin(cfg.hostname.c_str())) {
         MDNS.addService("http", "tcp", HTTP_PORT);
         MDNS.addService("telnet", "tcp", TELNET_PORT);
     }

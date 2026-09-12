@@ -14,7 +14,18 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>JUMA PA-100D</title><style>
 :root{--bg:#111;--card:#1e2228;--card2:#191d23;--line:#3a4049;--fg:#eee;--dim:#8b95a3;
---ok:#00b33c;--warn:#ff9900;--bad:#e60000;--off:#595959;--acc:#0eb8c0}
+--ok:#00b33c;--warn:#ff9900;--bad:#e60000;--off:#595959;--acc:#0eb8c0;
+--btn:#272c34;--btn2:#2a2f37;--sw:#3a4049}
+/* Hell: gleiche Semantik, aber die Signalfarben leicht abgedunkelt - #ff9900
+   auf Weiss ist als Text kaum lesbar. */
+:root[data-theme="light"]{--bg:#eef1f5;--card:#fff;--card2:#f5f7fa;--line:#d2d8e0;
+--fg:#161a1f;--dim:#5c6674;--ok:#079c35;--warn:#c97a00;--bad:#cc1f1a;--off:#ccd2da;
+--acc:#0a7b82;--btn:#e7ebf0;--btn2:#dfe4ea;--sw:#b9c1cb}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){--bg:#eef1f5;--card:#fff;--card2:#f5f7fa;--line:#d2d8e0;
+  --fg:#161a1f;--dim:#5c6674;--ok:#079c35;--warn:#c97a00;--bad:#cc1f1a;--off:#ccd2da;
+  --acc:#0a7b82;--btn:#e7ebf0;--btn2:#dfe4ea;--sw:#b9c1cb}
+}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);
 font:15px/1.45 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,sans-serif}
@@ -24,7 +35,7 @@ h1{font-size:18px;margin:0;font-weight:600;letter-spacing:.3px}
 .dot{width:9px;height:9px;border-radius:50%;display:inline-block;background:var(--bad);flex:0 0 auto}
 .dot.on{background:var(--ok)}
 .pill{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim)}
-.hbtn{background:#272c34;border:1px solid var(--line);color:var(--fg);border-radius:8px;
+.hbtn{background:var(--btn);border:1px solid var(--line);color:var(--fg);border-radius:8px;
 height:38px;min-width:38px;padding:0 10px;font-size:13px;cursor:pointer;flex:0 0 auto;font-family:inherit}
 .hbtn:hover{border-color:var(--acc)}
 #bGear{font-size:17px;padding:0}
@@ -45,7 +56,7 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--dim);wo
 .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px}
 .card h2{font-size:11px;text-transform:uppercase;letter-spacing:.9px;color:var(--acc);margin:0 0 12px}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-button{background:#272c34;color:var(--fg);border:1px solid var(--line);border-radius:7px;
+button{background:var(--btn);color:var(--fg);border:1px solid var(--line);border-radius:7px;
 padding:9px 14px;font-size:14px;cursor:pointer;font-family:inherit}
 button:hover{border-color:var(--acc)}
 button:disabled{opacity:.38;cursor:not-allowed}
@@ -54,7 +65,7 @@ button.act{background:var(--acc);border-color:var(--acc);color:#08191b;font-weig
 button.op{background:var(--ok);border-color:var(--ok);color:#03170a;font-weight:600}
 button.danger{border-color:#6b2320;color:#f0928d}
 .state{font-size:30px;font-weight:700;letter-spacing:1px;line-height:1}
-.txb{padding:4px 12px;border-radius:5px;font-size:13px;font-weight:700;background:#2a2f37;color:var(--dim)}
+.txb{padding:4px 12px;border-radius:5px;font-size:13px;font-weight:700;background:var(--btn2);color:var(--dim)}
 .txb.on{background:var(--bad);color:#fff}
 .bands{display:grid;grid-template-columns:repeat(auto-fit,minmax(66px,1fr));gap:8px}
 
@@ -74,8 +85,11 @@ button.danger{border-color:#6b2320;color:#f0928d}
 .gauge .gl{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--dim)}
 .gauge .gs{font-size:13px;margin-top:2px;min-height:1.3em}
 .gv{font:600 21px/1 ui-monospace,Menlo,monospace}
-.gu{font:400 9px/1 sans-serif;fill:#8b95a3}
-.gt{font:400 7px/1 sans-serif;fill:#8b95a3}
+.gu{font:400 9px/1 sans-serif;fill:var(--dim)}
+.gt{font:400 7px/1 sans-serif;fill:var(--dim)}
+.gz{stroke-opacity:.22}
+:root[data-theme="light"] .gz{stroke-opacity:.4}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]) .gz{stroke-opacity:.4}}
 
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:10px}
 .t{background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:10px}
@@ -89,11 +103,21 @@ button.danger{border-color:#6b2320;color:#f0928d}
 .offline{position:fixed;left:0;right:0;top:0;background:var(--bad);color:#fff;
 text-align:center;padding:8px;font-size:13px;font-weight:600;z-index:20;display:none}
 .offline.on{display:block}
+.alarmbar{position:fixed;left:0;right:0;top:0;background:var(--bad);color:#fff;
+display:none;align-items:center;gap:14px;padding:8px 14px;font-size:14px;
+font-weight:600;z-index:21}
+.alarmbar.on{display:flex}
+.alarmbar .hbtn{margin-left:auto;height:30px;background:rgba(0,0,0,.25);
+border-color:rgba(255,255,255,.35);color:#fff;font-weight:600}
+@keyframes abpulse{0%,100%{opacity:1}50%{opacity:.55}}
+.alarmbar.on{animation:abpulse 1.1s ease-in-out infinite}
 body.off .wrap{opacity:.4;filter:grayscale(.6)}
+/* Die Balken liegen fix oben - sonst verdecken sie die Kopfzeile */
+body.off .wrap,body.alarm .wrap{padding-top:52px}
 .note{font-size:12px;color:var(--dim);margin-top:10px;min-height:1em}
 .note.warn{color:var(--warn)}
 .sw{display:flex;align-items:center;gap:9px;cursor:pointer;user-select:none}
-.sw i{width:42px;height:23px;border-radius:12px;background:#3a4049;position:relative;transition:.15s;flex:0 0 auto}
+.sw i{width:42px;height:23px;border-radius:12px;background:var(--sw);position:relative;transition:.15s;flex:0 0 auto}
 .sw i::after{content:"";position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:50%;
 background:#fff;transition:.15s}.sw.on i{background:var(--ok)}.sw.on i::after{left:22px}
 
@@ -112,7 +136,9 @@ padding:9px;font:inherit;width:100%}
 input[type=file]{padding:7px}
 .sec{border-top:1px solid var(--line);margin-top:18px;padding-top:16px}
 .hint{font-size:11px;color:var(--dim);margin-top:8px;line-height:1.5}
-</style></head><body><div class="offline" id="off"></div><div class="wrap">
+</style></head><body><div class="offline" id="off"></div>
+<div class="alarmbar" id="ab2"><span id="abTxt"></span><button class="hbtn" id="bMute"></button></div>
+<div class="wrap">
 
 <header><h1>JUMA PA-100D</h1>
 <span class="pill"><span class="dot" id="dPa"></span>PA</span>
@@ -142,7 +168,7 @@ input[type=file]{padding:7px}
   </div>
 
   <div class="card"><h2 data-t="attHdr"></h2><div class="row" id="gains"></div>
-    <div class="hint" data-th="attHint"></div>
+    <div id="gnow" style="margin-top:10px;font-size:17px">-</div>
   </div>
 </section>
 
@@ -157,13 +183,10 @@ input[type=file]{padding:7px}
       <div class="gs" id="gTmpS">&nbsp;</div></div>
     <div class="gauge"><div class="gl" data-t="tFan"></div><div id="gFan"></div>
       <div class="gs" id="gFanS">&nbsp;</div></div>
-  </div></div>
-
-  <div class="card"><h2 data-t="opHdr"></h2><div class="tiles">
-    <div class="t"><div class="k" data-t="tVolt"></div><div class="v"><span id="v">-</span><small> V</small></div></div>
-    <div class="t"><div class="k" data-t="tAmp"></div><div class="v"><span id="a">-</span><small> A</small></div></div>
-    <div class="t"><div class="k" data-t="tScale"></div><div class="v" id="scale" style="font-size:16px">-</div></div>
-    <div class="t"><div class="k" data-t="tAtt"></div><div class="v" id="gnow" style="font-size:16px">-</div></div>
+    <div class="gauge"><div class="gl" data-t="tVolt"></div><div id="gVolt"></div>
+      <div class="gs" id="gVoltS">&nbsp;</div></div>
+    <div class="gauge"><div class="gl" data-t="tAmp"></div><div id="gAmp"></div>
+      <div class="gs" id="gAmpS">&nbsp;</div></div>
   </div></div>
 
   <div class="card"><h2 data-t="alHdr"></h2><div class="al" id="alarms"></div>
@@ -178,6 +201,8 @@ input[type=file]{padding:7px}
     <button class="hbtn" id="bClose" style="margin-left:auto;font-size:17px;padding:0">&times;</button></div>
 
   <form id="cfg">
+    <div class="fld"><label data-t="lHost"></label>
+      <input name="hostname" id="hostname" placeholder="juma-pa"></div>
     <div class="fld"><label data-t="lSsid"></label><input name="ssid" id="ssid"></div>
     <div class="fld"><label data-t="lPass"></label>
       <input name="pass" type="password" data-tp="phPass"></div>
@@ -207,6 +232,21 @@ input[type=file]{padding:7px}
     <div class="hint" data-th="offHint"></div>
   </div>
 
+  <div class="sec"><label data-t="alHdr"></label>
+    <div class="row" style="margin:10px 0">
+      <span class="sw" id="snd"><i></i><span data-t="lSound"></span></span></div>
+    <button class="hbtn" id="bNotify" style="width:100%;height:38px" data-t="bNotify"></button>
+    <div class="hint" id="notifySt"></div>
+    <div class="hint" data-t="soundHint"></div>
+  </div>
+
+  <div class="sec"><label data-t="lTheme"></label>
+    <div class="row"><span class="seg" style="width:100%">
+      <button class="hbtn" id="thSys" style="flex:1" data-t="thSystem"></button><button
+              class="hbtn" id="thLight" style="flex:1" data-t="thLight"></button><button
+              class="hbtn" id="thDark" style="flex:1" data-t="thDark"></button></span></div>
+  </div>
+
   <div class="sec"><label data-t="lLang"></label>
     <div class="row"><button class="hbtn" id="bDe" style="flex:1">Deutsch</button>
       <button class="hbtn" id="bEn" style="flex:1">English</button></div>
@@ -217,14 +257,14 @@ input[type=file]{padding:7px}
 // --- Texte ----------------------------------------------------------------
 const L={
 de:{bandHdr:"Band — PA meldet",abLabel:"Bandwahl per TCI",
-attHdr:"Abschwächer",attHint:"G1 = 6 dB · G2 = 4 dB · G3 = 2 dB · G4 = 0 dB — laut Manual ein Abschwächer, kein Verstärkungsfaktor. Die PA speichert ihn pro Band.",
-lvlHdr:"Pegel",thHdr:"Temperatur & Lüfter",opHdr:"Betriebsdaten",alHdr:"Alarme",
+attHdr:"Abschwächer",
+lvlHdr:"Pegel",thHdr:"Temperatur, Lüfter, Versorgung",alHdr:"Alarme",
 tTemp:"PA Temp",tFan:"Lüfter",tVolt:"Spannung",tAmp:"Strom",tSel:"Bandwahl der PA",
-tScale:"Skala",tAtt:"Abschwächer",bClear:"Alarm quittieren",
-cfgHdr:"Konfiguration",lSsid:"WLAN SSID",lPass:"WLAN Passwort",phPass:"unverändert lassen",
+tAtt:"Abschwächer",bClear:"Alarm quittieren",alarmTitle:"JUMA PA-100D: Alarm",alarmBody:"Die Endstufe meldet: %s",bMute:"Stummschalten",bMuted:"Stumm",lSound:"Akustischer Alarm",bNotify:"Benachrichtigungen erlauben",notifyOn:"Benachrichtigungen aktiv",notifyNo:"Benachrichtigungen erlaubt der Browser nur über HTTPS. Diese Seite läuft über http://, deshalb geht es hier nicht. Der Alarmton und das Banner funktionieren unabhängig davon.",notifyDenied:"Benachrichtigungen wurden abgelehnt",soundHint:"Die PA piepst nur vor Ort. Der Browser wiederholt den Alarmton alle 5 s, bis er quittiert ist oder der Alarm weg ist. Der Ton startet erst, nachdem die Seite einmal angeklickt wurde — so will es der Browser.",vNorm:"normal",vPre:"Vorwarnung",vUnder:"Unterspannung",vHigh:"erhöht",vOver:"Überspannung",iTrip:"Trip bei %s A",
+cfgHdr:"Konfiguration",lHost:"Gerätename (mDNS, OTA)",lSsid:"WLAN SSID",lPass:"WLAN Passwort",phPass:"unverändert lassen",
 lTciHost:"TCI Host (SDR-Software)",lTciPort:"TCI Port",lTciOn:"TCI aktiv",lTciLost:"Bei TCI-Verlust auf Automatik der PA",tciLostHint:"Schickt nach 15 s ohne TCI ein =A. Welche Methode die PA dann nutzt, steht in ihrer eigenen Konfiguration (F-Sense, FT-817, Yaesu CAT, KX2/KX3, JUMA-TRX2) — steht sie dort auf Manual, bringt =A nichts. Ohne diesen Schalter bleibt die PA auf dem zuletzt kommandierten Band, weil =Bn sie von A auf M schaltet.",
 bSave:"Speichern & neu starten",lFw:"Firmware-Update",bUpload:"Hochladen",
-lOff:"Verstärker abschalten",lLang:"Sprache",lOtaStby:"Vor dem Update auf STANDBY",otaStbyHint:"Schickt =S, bevor die neue Firmware geschrieben wird. Während des Schreibens und des Neustarts regelt nichts die PA. Aus lassen, wenn dir Entwicklungs-Uploads nicht die Betriebsart wegnehmen sollen.",
+lOff:"Verstärker abschalten",lLang:"Sprache",lTheme:"Darstellung",thSystem:"System",thLight:"Hell",thDark:"Dunkel",lOtaStby:"Vor dem Update auf STANDBY",otaStbyHint:"Schickt =S, bevor die neue Firmware geschrieben wird. Während des Schreibens und des Neustarts regelt nichts die PA. Aus lassen, wenn dir Entwicklungs-Uploads nicht die Betriebsart wegnehmen sollen.",
 offHint:"Schickt <code>=P0</code> ohne Zustandsspeicherung. Einschalten geht nur am Gerät — zweimal drücken zur Bestätigung.",
 fans:["Aus","Langsam","Mittel","Schnell"],
 alarms:["SWR zu hoch","Überstrom","Übertemperatur","Überspannung",
@@ -239,21 +279,21 @@ nAboff:"TCI-Bandwahl aus — die PA folgt der SDR-Software nicht",
 nTcioff:"TCI-Client ist abgeschaltet",
 nTcidis:"TCI nicht verbunden",nTciauto:"TCI weg — PA auf eigene Bandwahl (=A) zurückgestellt",nSelstuck:"PA bleibt auf eigener Bandwahl, obwohl die TCI-Bandwahl sie auf Manuell holen will",
 nTcinofreq:"TCI verbunden, aber noch keine QRG empfangen",
-nTxwait:"Bandwechsel wartet: TX aktiv",
+
 nPaoff:"PA antwortet nicht",
 nUnsupported:"QRG %s — die PA-100D deckt das Band nicht ab, Band bleibt unverändert",
 nBandok:"Band folgt TCI: %s",
 nBandset:"Band umgeschaltet: %s"},
 
 en:{bandHdr:"Band — PA reports",abLabel:"Band select via TCI",
-attHdr:"Attenuator",attHint:"G1 = 6 dB · G2 = 4 dB · G3 = 2 dB · G4 = 0 dB — per the manual this is an attenuator, not a gain factor. The PA stores it per band.",
-lvlHdr:"Levels",thHdr:"Temperature & fan",opHdr:"Operating data",alHdr:"Alarms",
+attHdr:"Attenuator",
+lvlHdr:"Levels",thHdr:"Temperature, fan, supply",alHdr:"Alarms",
 tTemp:"PA temp",tFan:"Fan",tVolt:"Voltage",tAmp:"Current",tSel:"PA band select",
-tScale:"Scale",tAtt:"Attenuator",bClear:"Clear alarm",
-cfgHdr:"Setup",lSsid:"Wi-Fi SSID",lPass:"Wi-Fi password",phPass:"leave unchanged",
+tAtt:"Attenuator",bClear:"Clear alarm",alarmTitle:"JUMA PA-100D: alarm",alarmBody:"The amplifier reports: %s",bMute:"Mute",bMuted:"Muted",lSound:"Audible alarm",bNotify:"Enable notifications",notifyOn:"Notifications active",notifyNo:"Browsers only allow notifications over HTTPS. This page runs over http://, so it cannot work here. The alarm tone and banner work regardless.",notifyDenied:"Notifications were denied",soundHint:"The PA only beeps locally. The browser repeats the alarm tone every 5 s until acknowledged or the alarm clears. Sound starts only after the page has been clicked once — browser policy.",vNorm:"normal",vPre:"pre-limit",vUnder:"under-voltage",vHigh:"elevated",vOver:"over-voltage",iTrip:"trip at %s A",
+cfgHdr:"Setup",lHost:"Device name (mDNS, OTA)",lSsid:"Wi-Fi SSID",lPass:"Wi-Fi password",phPass:"leave unchanged",
 lTciHost:"TCI host (SDR software)",lTciPort:"TCI port",lTciOn:"TCI enabled",lTciLost:"Fall back to the PA\u2019s own band select",tciLostHint:"Sends =A after 15 s without TCI. Which method the PA then uses is set in its own configuration (F-Sense, FT-817, Yaesu CAT, KX2/KX3, JUMA-TRX2) — if that is set to Manual, =A achieves nothing. Without this switch the PA stays on the last commanded band, because =Bn moves it from A to M.",
 bSave:"Save & restart",lFw:"Firmware update",bUpload:"Upload",
-lOff:"Power down amplifier",lLang:"Language",lOtaStby:"Standby before update",otaStbyHint:"Sends =S before the new firmware is written. Nothing controls the PA while writing and rebooting. Turn off if development uploads should not take away the operating state.",
+lOff:"Power down amplifier",lLang:"Language",lTheme:"Appearance",thSystem:"System",thLight:"Light",thDark:"Dark",lOtaStby:"Standby before update",otaStbyHint:"Sends =S before the new firmware is written. Nothing controls the PA while writing and rebooting. Turn off if development uploads should not take away the operating state.",
 offHint:"Sends <code>=P0</code> without saving state. Powering on is only possible at the unit — press twice to confirm.",
 fans:["Off","Slow","Medium","Fast"],
 alarms:["High SWR","Over-current","High temperature","High voltage",
@@ -268,7 +308,7 @@ nAboff:"TCI band select off — the PA does not follow the SDR software",
 nTcioff:"TCI client is disabled",
 nTcidis:"TCI not connected",nTciauto:"TCI lost — PA switched back to its own band select (=A)",nSelstuck:"PA stays on its own band select although TCI band select wants it on Manual",
 nTcinofreq:"TCI connected, but no frequency received yet",
-nTxwait:"Band change waiting: TX active",
+
 nPaoff:"PA not responding",
 nUnsupported:"QRG %s — the PA-100D does not cover this band, band left unchanged",
 nBandok:"Band follows TCI: %s",
@@ -280,7 +320,14 @@ function t(k,a){const v=L[lang][k];return (a===undefined)?v:String(v).replace("%
 
 const BANDS=[[1,"160m"],[2,"80m"],[3,"40m"],[4,"30m"],[5,"20m"],[6,"17m"],[7,"15m"],[8,"12m"],[9,"10m"]];
 const AMASK=[1,2,4,8,16,32];
-const C={ok:"#00b33c",warn:"#ff9900",bad:"#e60000",off:"#595959"};
+// Aus dem CSS lesen, damit der Hell/Dunkel-Wechsel auch die Anzeigen erfasst
+let C={};
+function readColors(){
+  const cs=getComputedStyle(document.documentElement);
+  ["ok","warn","bad","off","sw"].forEach(function(k){
+    C[k]=cs.getPropertyValue("--"+k).trim()});
+}
+readColors();
 const $=i=>document.getElementById(i);
 let ws,st={},offArm=0;
 
@@ -326,16 +373,17 @@ function mkGauge(el,zones,unit,ticks){
   let g='<svg viewBox="-10 -10 120 74">';
   zones.forEach((z,i)=>{
     const f0=i?zones[i-1][0]:0;
-    g+='<path d="'+arcPath(GR,f0*GA1,z[0]*GA1)+'" fill="none" stroke="'+z[1]+
-       '" stroke-opacity=".22" stroke-width="11"/>';
+    // Deckkraft per CSS, damit das helle Theme sie anheben kann
+    g+='<path class="gz" d="'+arcPath(GR,f0*GA1,z[0]*GA1)+
+       '" fill="none" stroke="'+z[1]+'" stroke-width="11"/>';
   });
-  g+='<path class="gval" d="" fill="none" stroke="#595959" stroke-width="11"/>';
+  g+='<path class="gval" d="" fill="none" stroke="'+C.off+'" stroke-width="11"/>';
   (ticks||[]).forEach(function(tk){
     const p=pol(GR+11,tk[0]*GA1);
     g+='<text class="gt" x="'+p[0].toFixed(1)+'" y="'+p[1].toFixed(1)+
        '" text-anchor="middle" dominant-baseline="middle">'+tk[1]+'</text>';
   });
-  g+='<text class="gv" x="50" y="44" text-anchor="middle" fill="#595959">-</text>'+
+  g+='<text class="gv" x="50" y="44" text-anchor="middle" fill='+C.off+'>-</text>'+
      '<text class="gu" x="50" y="55" text-anchor="middle">'+unit+'</text></svg>';
   el.innerHTML=g;
 }
@@ -347,14 +395,39 @@ function setGauge(el,frac,text,color){
   val.setAttribute("stroke",color);
   num.textContent=text;
   num.setAttribute("fill",color);
+  // "13.68" ist doppelt so breit wie "27" - sonst stoesst die Zahl an den Bogen
+  num.setAttribute("font-size", text.length>=5 ? 15 : text.length>=4 ? 18 : 21);
 }
 const TMIN=20,TMAX=80,TWARN=50,THIGH=60;
+// Die PA kann auch in Fahrenheit melden - dann muessen Einheit und
+// Skalenbeschriftung mitgehen, die Zonen bleiben dieselben Temperaturen.
+let tempF=false;
 const FW=(TWARN-TMIN)/(TMAX-TMIN), FH=(THIGH-TMIN)/(TMAX-TMIN);
+
+// Spannungsgrenzen sind Defaults bzw. Einstellbereiche aus dem Manual:
+// Unterspannung 11,00 V, Vorwarnung 11,20 V, Ueberspannung ab 14,00 V
+// einstellbar mit Default 14,80 V, Nennspannung 13,80 V. Steht am Geraet
+// etwas anderes eingestellt, hier anpassen.
+const VMIN=10.0,VMAX=15.5,VUV=11.0,VPRE=11.2,VOVA=14.0,VOV=14.8;
+const vf=function(x){return (x-VMIN)/(VMAX-VMIN)};
+
+// Der 24-A-Trip (MAX4373) ist laut Manual auch beim geraeteeigenen
+// Zeigerinstrument der Vollausschlag. Die Warnzonen bei 80 % und 90 % davon
+// sind abgeleitet - das Manual nennt nur den Trip selbst.
+const ITRIP=24,IW1=.8,IW2=.9;
+
 function buildGauges(){
+  const lab=function(c){return String(tempF?Math.round(c*9/5+32):c)};
   mkGauge($("gTmp"),[[FW,C.ok],[FH,C.warn],[1,C.bad]],
-          "°C",[[0,"20"],[FW,"50"],[FH,"60"],[1,"80"]]);
+          tempF?"°F":"°C",
+          [[0,lab(TMIN)],[FW,lab(TWARN)],[FH,lab(THIGH)],[1,lab(TMAX)]]);
   mkGauge($("gFan"),[[.25,C.off],[.5,C.ok],[.75,C.warn],[1,C.bad]],
           t("unitStep"),[[.125,"0"],[.375,"1"],[.625,"2"],[.875,"3"]]);
+  mkGauge($("gVolt"),[[vf(VUV),C.bad],[vf(VPRE),C.warn],[vf(VOVA),C.ok],
+                      [vf(VOV),C.warn],[1,C.bad]],
+          "V",[[0,"10"],[vf(VUV),"11"],[vf(13.8),"13.8"],[1,"15.5"]]);
+  mkGauge($("gAmp"),[[IW1,C.ok],[IW2,C.warn],[1,C.bad]],
+          "A",[[0,"0"],[.5,"12"],[1,"24"]]);
 }
 
 // --- Bedienelemente -------------------------------------------------------
@@ -409,10 +482,108 @@ $("fwSt").textContent=Math.round(e.loaded/e.total*100)+" %"};
 x.onload=function(){$("fwSt").textContent=x.status==200?t("upOk"):t("upErr",x.status)};
 x.onerror=function(){$("fwSt").textContent=t("upAbort")};x.send(fd)};
 
+// --- Alarm melden ---------------------------------------------------------
+// Die PA piepst nur vor Ort. Die Notification-API gibt es ausserdem nur im
+// "secure context" (HTTPS oder localhost) - ueber http:// auf eine LAN-IP ist
+// sie im Browser gar nicht vorhanden. Deshalb ist der Ton in der Seite die
+// Basis, Notifications kommen nur obendrauf, wenn der Browser sie hergibt.
+let ac=null,beepT=null,titleT=null,muted=false,lastAl=0;
+const origTitle=document.title;
+let sound=localStorage.getItem("sound")!=="0";
+
+function audio(){
+  if(!ac){try{ac=new (window.AudioContext||window.webkitAudioContext)()}catch(e){return null}}
+  if(ac.state==="suspended")ac.resume();
+  return ac;
+}
+// Zwei kurze Toene, wie der Piepser der PA
+function beep(){
+  if(!sound||muted)return;
+  const c=audio(); if(!c)return;
+  [0,.35].forEach(function(dt){
+    const o=c.createOscillator(),g=c.createGain();
+    o.type="square"; o.frequency.value=1180;
+    o.connect(g); g.connect(c.destination);
+    const t0=c.currentTime+dt;
+    g.gain.setValueAtTime(.0001,t0);
+    g.gain.exponentialRampToValueAtTime(.25,t0+.01);
+    g.gain.exponentialRampToValueAtTime(.0001,t0+.22);
+    o.start(t0); o.stop(t0+.24);
+  });
+}
+function alarmNames(mask){
+  return AMASK.map(function(m,i){return (mask&m)?t("alarms")[i]:null})
+              .filter(Boolean).join(", ");
+}
+function notify(txt){
+  if(!("Notification" in window)||Notification.permission!=="granted")return;
+  try{new Notification(t("alarmTitle"),
+      {body:t("alarmBody",txt),tag:"juma-alarm",renotify:true})}catch(e){}
+}
+function alarmOn(mask){
+  $("ab2").className="alarmbar on";
+  document.body.classList.add("alarm");
+  $("abTxt").textContent=t("alarmBody",alarmNames(mask));
+  if(!titleT)titleT=setInterval(function(){
+    document.title=document.title===origTitle?"\u26A0 "+t("alarmTitle"):origTitle},1200);
+  if(!beepT&&!muted){beep();beepT=setInterval(beep,5000)}
+}
+function alarmOff(){
+  $("ab2").className="alarmbar";
+  document.body.classList.remove("alarm");
+  muted=false; $("bMute").textContent=t("bMute");
+  if(beepT){clearInterval(beepT);beepT=null}
+  if(titleT){clearInterval(titleT);titleT=null;document.title=origTitle}
+}
+$("bMute").onclick=function(){
+  muted=true; $("bMute").textContent=t("bMuted");
+  if(beepT){clearInterval(beepT);beepT=null}
+};
+$("snd").onclick=function(e){
+  sound=!e.currentTarget.classList.contains("on");
+  e.currentTarget.classList.toggle("on",sound);
+  localStorage.setItem("sound",sound?"1":"0");
+  if(sound)beep();
+};
+function notifyStatus(){
+  // Chrome behaelt das Notification-Objekt auch auf http:// und setzt die
+  // Berechtigung stillschweigend auf "denied". Das sieht aus, als haette der
+  // Nutzer abgelehnt - deshalb den echten Grund abfragen und die Taste sperren.
+  const insecure=!window.isSecureContext;
+  $("bNotify").disabled = insecure || !("Notification" in window);
+  if(!("Notification" in window)||insecure){$("notifySt").textContent=t("notifyNo");return}
+  if(Notification.permission==="granted")$("notifySt").textContent=t("notifyOn");
+  else if(Notification.permission==="denied")$("notifySt").textContent=t("notifyDenied");
+  else $("notifySt").textContent="";
+}
+$("bNotify").onclick=function(){
+  if(!("Notification" in window)){$("notifySt").textContent=t("notifyNo");return}
+  try{Notification.requestPermission().then(notifyStatus).catch(notifyStatus)}
+  catch(e){$("notifySt").textContent=t("notifyNo")}
+};
+
 function send(c,v){if(ws&&ws.readyState==1)ws.send(c+":"+v)}
 
 // --- Sprache --------------------------------------------------------------
 function setLang(l){lang=l;localStorage.setItem("lang",l);applyLang()}
+
+// "" = dem System folgen
+let theme=localStorage.getItem("theme")||"";
+function applyTheme(){
+  if(theme)document.documentElement.setAttribute("data-theme",theme);
+  else     document.documentElement.removeAttribute("data-theme");
+  localStorage.setItem("theme",theme);
+  readColors();
+  ["thSys","thLight","thDark"].forEach(function(i,n){
+    $(i).className="hbtn"+((["","light","dark"][n]===theme)?" act":"")});
+  buildGauges();
+  if(st.raw!==undefined)render(st);
+}
+$("thSys").onclick=function(){theme="";applyTheme()};
+$("thLight").onclick=function(){theme="light";applyTheme()};
+$("thDark").onclick=function(){theme="dark";applyTheme()};
+if(window.matchMedia)matchMedia("(prefers-color-scheme: light)")
+  .addEventListener("change",function(){if(!theme)applyTheme()});
 $("bDe").onclick=function(){setLang("de")};
 $("bEn").onclick=function(){setLang("en")};
 
@@ -423,6 +594,10 @@ function applyLang(){
   document.querySelectorAll("[data-tp]").forEach(function(e){e.placeholder=t(e.dataset.tp)});
   document.querySelectorAll("#alarms div").forEach(function(d){
     d.querySelector(".an").textContent=t("alarms")[+d.dataset.i]});
+  $("snd").className="sw"+(sound?" on":"");
+  $("bMute").textContent=muted?t("bMuted"):t("bMute");
+  notifyStatus();
+  if($("ab2").className.indexOf("on")>=0&&st.alarms)alarmOn(st.alarms);
   $("bDe").className="hbtn"+(lang==="de"?" act":"");
   $("bEn").className="hbtn"+(lang==="en"?" act":"");
   buildGauges();
@@ -433,7 +608,7 @@ function applyLang(){
 // --- Zustand anzeigen -----------------------------------------------------
 // Nur echte Hindernisse werden als Warnung eingefaerbt - "Automatik aus" oder
 // "Band folgt TCI" sind Zustandsinfos, keine Probleme.
-const NWARN={tcidis:1,tcinofreq:1,txwait:1,unsupported:1,paoff:1,selstuck:1};
+const NWARN={tcidis:1,tcinofreq:1,unsupported:1,paoff:1,selstuck:1};
 function noteText(s){
   if(!s.note)return "";
   const k="n"+s.note.charAt(0).toUpperCase()+s.note.slice(1);
@@ -453,22 +628,35 @@ setLevel($("lRf"), s.online?s.watts:null,1);
 setLevel($("lSwr"),s.online?s.swr:null,1);
 
 if(s.online){
-  const tp=s.temp,tc=tp>=THIGH?C.bad:tp>=TWARN?C.warn:C.ok;
-  setGauge($("gTmp"),(tp-TMIN)/(TMAX-TMIN),String(tp),tc);
-  $("gTmpS").textContent=(s.celsius?t("cels"):t("fahr"))+" · "+
-    (tp>=THIGH?t("tHot"):tp>=TWARN?t("tWarm"):t("tNorm"));
+  if(tempF!==!s.celsius){tempF=!s.celsius;buildGauges()}
+  const tCel=s.celsius?s.temp:(s.temp-32)*5/9;
+  const tc=tCel>=THIGH?C.bad:tCel>=TWARN?C.warn:C.ok;
+  setGauge($("gTmp"),(tCel-TMIN)/(TMAX-TMIN),String(s.temp),tc);
+  $("gTmpS").textContent=tCel>=THIGH?t("tHot"):tCel>=TWARN?t("tWarm"):t("tNorm");
   $("gTmpS").style.color=tc;
   const fc=[C.off,C.ok,C.warn,C.bad][s.fan]||C.off;
   setGauge($("gFan"),(s.fan+1)/4,String(s.fan),fc);
   $("gFanS").textContent=t("fans")[s.fan]||"?";
   $("gFanS").style.color=s.fan?fc:"var(--dim)";
+
+  const v=s.volts;
+  const vc=(v<VUV||v>=VOV)?C.bad:(v<VPRE||v>=VOVA)?C.warn:C.ok;
+  setGauge($("gVolt"),vf(v),v.toFixed(2),vc);
+  $("gVoltS").textContent=v<VUV?t("vUnder"):v<VPRE?t("vPre"):
+                          v>=VOV?t("vOver"):v>=VOVA?t("vHigh"):t("vNorm");
+  $("gVoltS").style.color=vc;
+
+  const a=s.amps, ac=a>=ITRIP*IW2?C.bad:a>=ITRIP*IW1?C.warn:C.ok;
+  setGauge($("gAmp"),a/ITRIP,a.toFixed(1),ac);
+  $("gAmpS").textContent=t("iTrip",ITRIP);
+  $("gAmpS").style.color=a>=ITRIP*IW1?ac:"var(--dim)";
 }else{
   setGauge($("gTmp"),0,"-",C.off);$("gTmpS").innerHTML="&nbsp;";
   setGauge($("gFan"),0,"-",C.off);$("gFanS").innerHTML="&nbsp;";
+  setGauge($("gVolt"),0,"-",C.off);$("gVoltS").innerHTML="&nbsp;";
+  setGauge($("gAmp"),0,"-",C.off);$("gAmpS").innerHTML="&nbsp;";
 }
 
-$("v").textContent=s.online?s.volts.toFixed(2):"-";
-$("a").textContent=s.online?s.amps.toFixed(1):"-";
 // In Automatik bestimmt die PA das Band per F-Sense selbst und kann damit
 // gegen unsere =Bn arbeiten - das ist nur ein Problem, wenn TCI-Bandwahl laeuft.
 $("bSelM").className="hbtn"+(s.online&&!s.autoSel?" act":"");
@@ -480,9 +668,9 @@ $("bSelM").disabled=locked;$("bSelA").disabled=locked;
 const conflict=s.online&&s.autoSel&&s.autoband;
 $("aselSub").textContent=conflict?t("selConflict"):(s.autoband?t("selLocked"):"");
 $("aselSub").style.color=conflict?C.warn:"var(--dim)";
-$("scale").textContent=s.online?(s.celsius?t("cels"):t("fahr")):"-";
 // Welche Stufe aktiv ist, zeigen die G-Tasten in der linken Spalte - hier
 // interessiert nur der Wert.
+// Welche Stufe aktiv ist, zeigen die G-Tasten - hier nur der Wert
 $("gnow").textContent=s.online&&s.gain?[6,4,2,0][s.gain-1]+" dB":"-";
 
 $("bandNow").textContent=s.bandName;
@@ -492,7 +680,14 @@ document.querySelectorAll("#gains button").forEach(function(b){
 b.className=(+b.dataset.g===s.gain)?"act":""});
 document.querySelectorAll("#alarms div").forEach(function(d){
 const hit=(s.alarms&+d.dataset.m)!==0;
-d.className=hit?"hit":"";d.firstChild.style.background=hit?C.bad:"#3a4049"});
+d.className=hit?"hit":"";d.firstChild.style.background=hit?C.bad:C.sw});
+
+if(s.alarms){
+  alarmOn(s.alarms);
+  const neu=s.alarms&~lastAl;
+  if(neu)notify(alarmNames(neu));
+}else if(lastAl){alarmOff()}
+lastAl=s.alarms;
 
 $("ab").className="sw"+(s.autoband?" on":"");
 $("raw").textContent=s.raw;
@@ -500,6 +695,7 @@ $("note").textContent=noteText(s);
 $("note").className="note"+(NWARN[s.note]?" warn":"");
 $("fwSt").textContent=t("running")+(s.version||"");
 if(!$("panel").classList.contains("on")){
+  $("hostname").value=s.hostname||"";
   $("tcihost").value=s.tciHost;$("tciport").value=s.tciPort;$("ssid").value=s.ssid;
   $("tcien").className="sw"+(s.tciEnabled?" on":"");
   $("otastby").className="sw"+(s.otaStandby?" on":"");
@@ -510,7 +706,7 @@ applyLang();
 // deshalb sagt die Seite deutlich, wenn die Verbindung weg ist.
 function setLink(on){
   $("off").className="offline"+(on?"":" on");
-  document.body.className=on?"":"off";
+  document.body.classList.toggle("off",!on);
   if(!on)$("off").textContent=t("wsLost");
 }
 function conn(){ws=new WebSocket("ws://"+location.hostname+":81/");

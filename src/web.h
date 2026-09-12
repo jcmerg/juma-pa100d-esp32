@@ -2,6 +2,7 @@
 #include <Arduino.h>
 
 struct Settings {
+    String   hostname;   // Netzname fuer WLAN, mDNS und OTA
     String   ssid;
     String   pass;
     String   tciHost;
@@ -14,6 +15,8 @@ struct Settings {
 
 extern Settings cfg;
 
+String sanitizeHostname(const String& in);
+
 void settingsLoad();
 void settingsSave();
 
@@ -25,7 +28,6 @@ void webLoop();
 // Argument - die Uebersetzung passiert im Browser, damit die Sprachumschaltung
 // nicht an in der Firmware festgetackerten Texten scheitert.
 //   ""            kein Hinweis
-//   "txwait"      Bandwechsel wartet, TX aktiv
 //   "unsupported" Band wird von der PA nicht abgedeckt   (arg = Bandname)
 //   "bandset"     Band umgeschaltet                      (arg = Bandname)
 //   "abon"/"aboff" TCI-Bandwahl ein/aus

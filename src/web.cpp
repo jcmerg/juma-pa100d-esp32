@@ -12,6 +12,21 @@
 #include <esp_task_wdt.h>
 
 Settings cfg;
+
+// mDNS und DHCP vertragen nur Kleinbuchstaben, Ziffern und Bindestriche.
+// Alles andere wird verworfen statt abgelehnt - ein leerer Name faellt auf
+// die Vorgabe zurueck, damit das Geraet nie namenlos im Netz haengt.
+String sanitizeHostname(const String& in) {
+    String out;
+    for (size_t i = 0; i < in.length() && out.length() < 32; i++) {
+        char c = in[i];
+        if (c >= 'A' && c <= 'Z') c = (char)(c - 'A' + 'a');
+        if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-') out += c;
+    }
+    while (out.length() && out[0] == '-')                  out.remove(0, 1);
+    while (out.length() && out[out.length() - 1] == '-')   out.remove(out.length() - 1);
+    return out.length() ? out : String(HOSTNAME_DEFAULT);
+}
 static WebServer       http(HTTP_PORT);
 static WebSocketsServer wsSrv(WS_PORT);
 static Preferences      prefs;
@@ -35,6 +50,7 @@ void settingsLoad() {
     // isKey() vorweg, sonst loggt getString() beim ersten Start je Schluessel
     // ein [E] nvs_get_str ... NOT_FOUND - das sieht nach Defekt aus, ist aber
     // nur der noch leere Namespace.
+    cfg.hostname = prefs.isKey("host") ? prefs.getString("host") : String(HOSTNAME_DEFAULT);
     if (prefs.isKey("ssid"))     cfg.ssid     = prefs.getString("ssid");
     if (prefs.isKey("pass"))     cfg.pass     = prefs.getString("pass");
     if (prefs.isKey("tcihost"))  cfg.tciHost  = prefs.getString("tcihost");
@@ -48,6 +64,7 @@ void settingsLoad() {
 
 void settingsSave() {
     prefs.begin("juma", false);
+    prefs.putString("host",    cfg.hostname);
     prefs.putString("ssid",    cfg.ssid);
     prefs.putString("pass",    cfg.pass);
     prefs.putString("tcihost", cfg.tciHost);
@@ -92,6 +109,7 @@ static void buildState(String& out) {
     d["otaStandby"] = cfg.otaStandby;
     d["tciLostAuto"] = cfg.tciLostAuto;
     d["ssid"]    = cfg.ssid;
+    d["hostname"] = cfg.hostname;
     d["note"]    = noteCode;
     d["noteArg"] = noteArg;
     d["version"] = FW_VERSION;
@@ -141,6 +159,7 @@ static void handleCmd(const char* text) {
 // --- HTTP ----------------------------------------------------------------
 
 static void onConfig() {
+    if (http.hasArg("hostname")) cfg.hostname = sanitizeHostname(http.arg("hostname"));
     if (http.hasArg("ssid"))    cfg.ssid    = http.arg("ssid");
     if (http.hasArg("pass") && http.arg("pass").length()) cfg.pass = http.arg("pass");
     if (http.hasArg("tcihost")) cfg.tciHost = http.arg("tcihost");

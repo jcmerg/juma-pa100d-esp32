@@ -3,7 +3,7 @@
 
 // Nur die Zahl hochzaehlen - so laesst sich nach einem OTA-Update pruefen,
 // was wirklich laeuft.
-#define FW_VERSION "1.1.2"
+#define FW_VERSION "1.7.0"
 
 // ---------------------------------------------------------------------------
 // Hardware
@@ -65,8 +65,9 @@ static const char*    AP_PASS   = AP_PASSWORD;
 static const uint16_t HTTP_PORT = 80;
 static const uint16_t WS_PORT   = 81;
 
-// Netzname fuer mDNS, OTA und DHCP: http://juma-pa.local/
-static const char*    HOSTNAME    = "juma-pa";
+// Netzname fuer mDNS, OTA und DHCP - Vorgabe, im Web-UI aenderbar:
+// http://<hostname>.local/
+static const char*    HOSTNAME_DEFAULT = "juma-pa";
 static const char*    OTA_PASS    = OTA_PASSWORD;
 static const uint16_t TELNET_PORT = 23;
 

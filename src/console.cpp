@@ -22,6 +22,7 @@ static void help() {
         "\nKommandos:\n"
         "  show                aktuelle Konfiguration und Zustand\n"
         "  scan                WLAN-Scan\n"
+        "  hostname <name>     Netzname fuer WLAN, mDNS und OTA\n"
         "  ssid <name>         WLAN-SSID setzen\n"
         "  pass <secret>       WLAN-Passwort setzen\n"
         "  tci <host> [port]   TCI-Host der SDR-Software (Port default 50002)\n"
@@ -40,6 +41,8 @@ static void help() {
 static void show() {
     const JumaStatus& s = juma.status();
     io->println();
+    io->printf("Name      %s  ->  http://%s.local/\n",
+                  cfg.hostname.c_str(), cfg.hostname.c_str());
     io->printf("WLAN      SSID '%s'  Passwort %s\n",
                   cfg.ssid.c_str(), cfg.pass.length() ? "gesetzt" : "-");
     if (WiFi.status() == WL_CONNECTED)
@@ -124,6 +127,14 @@ static void dispatch(char* s) {
         if (!arg) { io->println(F("Beispiel: pa =R")); return; }
         juma.send(arg);
         io->printf("gesendet: '%s'\n", arg);
+        return;
+    }
+
+    if (!strcmp(cmd, "hostname")) {
+        if (!arg) { io->println(F("Beispiel: hostname juma-pa")); return; }
+        cfg.hostname = sanitizeHostname(arg);
+        io->printf("Hostname = '%s'   (mit 'save' speichern, wirkt nach Neustart)\n",
+                      cfg.hostname.c_str());
         return;
     }
 
