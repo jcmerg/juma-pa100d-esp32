@@ -40,6 +40,9 @@ static void help() {
         "  autoband <0|1>      Bandwahl per TCI aus/ein\n"
         "  otastby <0|1>       vor dem Firmware-Update =S an die PA\n"
         "  tcilosta <0|1>      bei TCI-Verlust =A senden (PA waehlt wieder selbst)\n"
+        "  tempwarn <grad>     Vorwarnung ab dieser Temperatur\n"
+        "  temphigh <grad>     ab hier rot in der Anzeige\n"
+        "  tempalarm <0|1>     Vorwarnung aus/ein\n"
         "  sel <a|m>           Bandwahl der PA auf Automatik / Manuell\n"
         "  save                speichern und neu starten\n"
         "  reboot              nur neu starten\n"
@@ -74,6 +77,8 @@ static void show() {
         io->printf("          QRG %.4f MHz (%s), %s\n", tci.freqHz() / 1e6,
                       bandNameFromHz(tci.freqHz()), tci.tx() ? "TX" : "RX");
 
+    io->printf("Temperatur Warnung ab %u, rot ab %u Grad, Vorwarnung %s\n",
+                  cfg.tempWarn, cfg.tempHigh, cfg.tempAlarm ? "ein" : "aus");
     io->printf("Bandwahl  per TCI %s   STANDBY vor Update: %s   =A bei TCI-Verlust: %s\n",
                   cfg.autoband ? "ein" : "aus", cfg.otaStandby ? "ja" : "nein",
                   cfg.tciLostAuto ? "ja" : "nein");
@@ -216,6 +221,25 @@ static void dispatch(char* s) {
                 io->printf("PA meldet Band %u - kein =Bn moeglich\n", b);
             }
         }
+        return;
+    }
+
+    if (!strcmp(cmd, "tempwarn") || !strcmp(cmd, "temphigh")) {
+        if (!arg) { io->println(F("Beispiel: tempwarn 50")); return; }
+        int v = atoi(arg);
+        if (v < 20 || v > 120) { io->println(F("nur 20..120 Grad")); return; }
+        if (cmd[4] == 'w') cfg.tempWarn = (uint8_t)v; else cfg.tempHigh = (uint8_t)v;
+        if (cfg.tempHigh < cfg.tempWarn) cfg.tempHigh = cfg.tempWarn;
+        settingsSave();
+        io->printf("Temperatur: Warnung ab %u, rot ab %u Grad (gespeichert)\n",
+                      cfg.tempWarn, cfg.tempHigh);
+        return;
+    }
+
+    if (!strcmp(cmd, "tempalarm")) {
+        cfg.tempAlarm = (arg && atoi(arg) != 0);
+        settingsSave();
+        io->printf("Temperatur-Vorwarnung: %s (gespeichert)\n", cfg.tempAlarm ? "ein" : "aus");
         return;
     }
 

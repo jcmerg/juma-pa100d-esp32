@@ -267,6 +267,10 @@ kommt und dann keine Zeit mehr bleibt.
 Ein Lüfter auf Stufe 3 ist dabei selbst ein Frühwarnzeichen: er springt per
 Default schon bei 40 °C an und läuft nur unter Last ganz hoch.
 
+Die Warnschwelle treibt beide Dinge: die orange Zone der Anzeige **und** die
+Vorwarnung mit Ton und Banner. Sie sollte deutlich unter der Abschaltgrenze des
+Geräts liegen.
+
 **Eingangsleistung gibt es nicht.** Die PA misst HF nur am Ausgang — Kanal 12
 rückwärts, Kanal 13 vorwärts, daraus Ausgangsleistung und SWR. Ein Messpunkt
 für die Ansteuerung existiert im Gerät nicht.
@@ -297,6 +301,15 @@ Die PA piepst bei einem Alarm — aber nur vor Ort. Das Dashboard macht daraus:
 - ein rotes Banner am oberen Rand mit den betroffenen Alarmen
 - einen Alarmton, alle 5 s wiederholt, bis quittiert oder Alarm weg
 - einen blinkenden Tab-Titel, damit es auch im Hintergrund auffällt
+
+**Zusätzlich warnt das Dashboard vor der Abschaltung.** Das Alarmbit der PA
+kommt erst, wenn sie sich wegen Übertemperatur abschaltet — und dann bleibt
+keine Zeit mehr zu reagieren; mit der Abschaltung stirbt auch die serielle
+Verbindung, die Meldung käme also nie an. Überschreitet die Temperatur die
+eingestellte Warnschwelle, schlagen deshalb dasselbe Banner und derselbe Ton an,
+auch wenn die PA noch keinen Alarm meldet. Schwelle und Rotzone sind in den
+Einstellungen konfigurierbar (`tempwarn`, `temphigh`, `tempalarm`), Vorgabe
+50 ° und 60 °.
 
 Der Ton startet erst, nachdem die Seite einmal angeklickt wurde — so verlangt es
 die Autoplay-Richtlinie der Browser. Abschaltbar in den Einstellungen.

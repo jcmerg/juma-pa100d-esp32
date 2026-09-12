@@ -73,6 +73,9 @@ void settingsLoad() {
     cfg.autoband = prefs.getBool("autoband", false);
     cfg.otaStandby = prefs.getBool("otastdby", true);
     cfg.tciLostAuto = prefs.getBool("tcilosta", false);
+    cfg.tempWarn  = prefs.getUChar("tempwarn", 50);
+    cfg.tempHigh  = prefs.getUChar("temphigh", 60);
+    cfg.tempAlarm = prefs.getBool("tempalarm", true);
     prefs.end();
 }
 
@@ -87,6 +90,9 @@ void settingsSave() {
     prefs.putBool("autoband",  cfg.autoband);
     prefs.putBool("otastdby", cfg.otaStandby);
     prefs.putBool("tcilosta", cfg.tciLostAuto);
+    prefs.putUChar("tempwarn", cfg.tempWarn);
+    prefs.putUChar("temphigh", cfg.tempHigh);
+    prefs.putBool("tempalarm", cfg.tempAlarm);
     prefs.end();
 }
 
@@ -122,6 +128,9 @@ static void buildState() {
     d["tciEnabled"] = cfg.tciEn;
     d["otaStandby"] = cfg.otaStandby;
     d["tciLostAuto"] = cfg.tciLostAuto;
+    d["tempWarn"]  = cfg.tempWarn;
+    d["tempHigh"]  = cfg.tempHigh;
+    d["tempAlarm"] = cfg.tempAlarm;
     d["ssid"]    = cfg.ssid;
     d["hostname"] = cfg.hostname;
     d["note"]    = noteCode;
@@ -194,6 +203,16 @@ static void onConfig() {
     if (http.hasArg("tcien"))   cfg.tciEn   = (http.arg("tcien") == "1");
     if (http.hasArg("otastby")) cfg.otaStandby = (http.arg("otastby") == "1");
     if (http.hasArg("tcilosta")) cfg.tciLostAuto = (http.arg("tcilosta") == "1");
+    if (http.hasArg("tempalarm")) cfg.tempAlarm = (http.arg("tempalarm") == "1");
+    if (http.hasArg("tempwarn")) {
+        int v = http.arg("tempwarn").toInt();
+        if (v >= 20 && v <= 120) cfg.tempWarn = (uint8_t)v;
+    }
+    if (http.hasArg("temphigh")) {
+        int v = http.arg("temphigh").toInt();
+        if (v >= 20 && v <= 120) cfg.tempHigh = (uint8_t)v;
+    }
+    if (cfg.tempHigh < cfg.tempWarn) cfg.tempHigh = cfg.tempWarn;
     settingsSave();
     // sprachneutral - den Text macht das Dashboard, sonst steht im englischen
     // UI ploetzlich Deutsch
