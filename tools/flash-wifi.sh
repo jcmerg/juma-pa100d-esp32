@@ -10,7 +10,11 @@ set -e
 cd "$(dirname "$0")/.."
 
 HOST="${1:-juma-pa.local}"
-PASS="${JUMA_OTA_PASS:?bitte setzen: export JUMA_OTA_PASS=...}"
+# Ohne JUMA_OTA_PASS aus platformio_local.ini lesen - dieselbe Quelle, aus der
+# die Firmware gebaut wurde, also nie ein zweiter Ort zum Pflegen.
+PASS="${JUMA_OTA_PASS:-$(sed -n "s/.*-DOTA_PASSWORD='\"\(.*\)\"'.*/\1/p" \
+        platformio_local.ini 2>/dev/null | head -1)}"
+: "${PASS:?kein Passwort - JUMA_OTA_PASS setzen oder platformio_local.ini anlegen}"
 PIO="${PIO:-$HOME/.platformio/penv/bin/pio}"
 
 "$PIO" run -e esp32dev

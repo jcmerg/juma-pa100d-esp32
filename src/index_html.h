@@ -271,7 +271,7 @@ alarms:["SWR zu hoch","Überstrom","Übertemperatur","Überspannung",
         "Unterspannung Vorwarnung","Unterspannung Abschaltung"],
 auto:"Automatik",manual:"Manuell",selConflict:"PA wählt selbst, obwohl TCI-Bandwahl an ist",selLocked:"Bei aktiver TCI-Bandwahl bestimmt der ESP32 das Band und hält die PA auf Manuell.",cels:"Celsius",fahr:"Fahrenheit",
 tNorm:"normal",tWarm:"warm",tHot:"zu heiß",unitStep:"Stufe",
-running:"Läuft: ",noFile:"keine Datei gewählt",loading:"lade %s kB…",
+running:"Läuft: ",noFile:"keine Datei gewählt",auth:"Anmeldung…",loading:"lade %s kB…",
 upOk:"OK — Gerät startet neu",upErr:"Fehler %s",upAbort:"Übertragung abgebrochen",
 saving:"speichere…",restarting:"Gerät startet neu",saved:"Gespeichert — Gerät startet neu",wsLost:"Verbindung zum Gerät unterbrochen — versuche erneut…",
 confirm:"Wirklich? Nochmal drücken",
@@ -300,7 +300,7 @@ alarms:["High SWR","Over-current","High temperature","High voltage",
         "Low voltage pre-limit","Low voltage final limit"],
 auto:"Automatic",manual:"Manual",selConflict:"PA selects on its own while TCI band select is on",selLocked:"With TCI band select on, the ESP32 determines the band and holds the PA on Manual.",cels:"Celsius",fahr:"Fahrenheit",
 tNorm:"normal",tWarm:"warm",tHot:"too hot",unitStep:"Step",
-running:"Running: ",noFile:"no file selected",loading:"uploading %s kB…",
+running:"Running: ",noFile:"no file selected",auth:"Authenticating…",loading:"uploading %s kB…",
 upOk:"OK — device restarting",upErr:"Error %s",upAbort:"transfer aborted",
 saving:"saving…",restarting:"device restarting",saved:"Saved — device restarting",wsLost:"Connection to the device lost — retrying…",
 confirm:"Confirm? Press again",
@@ -475,12 +475,18 @@ fetch("/api/config",{method:"POST",body:new URLSearchParams(f)})
 $("bFw").onclick=function(){const f=$("fw").files[0];
 if(!f){$("fwSt").textContent=t("noFile");return}
 const fd=new FormData();fd.append("firmware",f,f.name);
+// Erst den geschuetzten GET - dann fragt der Browser die Zugangsdaten ab,
+// bevor die Datei laeuft, und nicht hinterher nochmal.
+$("fwSt").textContent=t("auth");
+fetch("/update",{method:"GET",credentials:"include"}).then(function(r){
+if(!r.ok){$("fwSt").textContent=t("upErr",r.status);return}
 $("fwSt").textContent=t("loading",f.size/1024|0);
-const x=new XMLHttpRequest();x.open("POST","/update",true);
+const x=new XMLHttpRequest();x.open("POST","/update",true);x.withCredentials=true;
 x.upload.onprogress=function(e){if(e.lengthComputable)
 $("fwSt").textContent=Math.round(e.loaded/e.total*100)+" %"};
 x.onload=function(){$("fwSt").textContent=x.status==200?t("upOk"):t("upErr",x.status)};
-x.onerror=function(){$("fwSt").textContent=t("upAbort")};x.send(fd)};
+x.onerror=function(){$("fwSt").textContent=t("upAbort")};x.send(fd);
+}).catch(function(){$("fwSt").textContent=t("upAbort")})};
 
 // --- Alarm melden ---------------------------------------------------------
 // Die PA piepst nur vor Ort. Die Notification-API gibt es ausserdem nur im

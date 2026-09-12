@@ -583,53 +583,6 @@ Verbindungsverlust deutlich Bescheid, statt still auf alten Werten einzufrieren.
 
 ---
 
-## Bewusst nicht gebaut
-
-**Schutzabschaltung.** Die PA hat eine eigene SWR-Abschaltung, einen
-unabhängigen Überstromtrip (MAX4373, 24 A) und Temperatur- sowie
-Spannungsalarme. Eine zweite Schicht darüber bringt nichts — und über TCI ließe
-sie sich ohnehin nicht durchsetzen, siehe oben.
-
-**HTTPS auf dem Gerät.** Technisch ginge es: die mbedTLS der Arduino-Firmware
-kann Zertifikate *schreiben* (`mbedtls_x509write_crt_pem`, `mbedtls_ecp_gen_key`
-liegen in den vorkompilierten Bibliotheken), der ESP32 könnte sich also beim
-ersten Start selbst eines erzeugen und vor Ablauf erneuern — mit einem
-EC-Schlüssel in etwa einer Sekunde, RSA-2048 dagegen kann Minuten dauern. Einen
-TLS-Server gibt es ebenfalls (`fhessel/esp32_https_server`).
-
-Dagegen sprechen drei Dinge. Der Aufwand sitzt an der falschen Stelle: von einer
-`https://`-Seite ist `ws://` Mixed Content und wird blockiert, der WebSocket
-müsste also auch auf TLS — und das kann `arduinoWebSockets` serverseitig nicht.
-Es liefe auf einen Austausch des kompletten Web-Stacks hinaus. Die Kosten sind
-spürbar: rund 35–40 kB RAM je TLS-Verbindung statt weniger kB, realistisch 2–3
-gleichzeitige Browser statt 8, Seitenaufbau 1–2 s statt 0,2 s. Und der Gewinn
-ist mager: ein selbstsigniertes Zertifikat bringt auf jedem neuen Gerät eine
-Warnseite, und Safari akzeptiert auch manuell vertraute Zertifikate nur 398 Tage.
-
-Wer HTTPS wirklich will, fährt besser mit einem hochgeladenen Zertifikat aus
-einer eigenen CA. Für Alarmierung unterwegs ist **ausgehendes** TLS der bessere
-Weg — der ESP32 als Client zu einem Push-Dienst ist eine kurze Verbindung ohne
-Stack-Umbau.
-
-**PTT über den ESP32.** Reizvoll, weil es die Keyline zwischen TRX und PA sparen
-würde, und elektrisch trivial: laut Manual wird die PA „by simply grounding the
-tip" der T/R-Buchse getastet, ein Optokoppler am GPIO genügt. Der Blocker ist
-die **Einschaltflanke** — `trx:0,true` ist eine Meldung über einen bereits
-laufenden Wechsel, kein Vorlauf. Selbst bei null Latenz käme das PTT
-gleichzeitig oder zu spät, und der Verstärker schaltet heiß. Das ginge nur mit
-einer TX-Verzögerung in der SDR-Software, die über dem Worst Case liegt. Die
-Ausschaltflanke wäre unkritisch, zu spät ist dort die sichere Richtung.
-
-In einem normalen 2,4-GHz-Heimnetz gemessen (300 Pakete): Median 9,6 ms,
-p99 25,8 ms, Maximum 26,8 ms, keines über 50 ms. Brauchbar — aber eine
-Stichprobe dieser Länge beweist den Schwanz der Verteilung nicht, und genau die
-seltenen Ausreißer zerlegen Relais. Der risikofreie Weg wäre, die ESP32-PTT
-parallel zur bestehenden Leitung zu legen und dem ESP32 zusätzlich einen Eingang
-auf die echte Leitung zu geben: dann misst er über Wochen selbst, ob er zu spät
-gekommen wäre, während die Drahtbrücke weiter die Arbeit macht.
-
----
-
 ## Lizenz
 
 MIT — siehe [LICENSE](LICENSE).

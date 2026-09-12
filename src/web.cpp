@@ -237,6 +237,13 @@ void webBegin() {
     static const char* otaHeaders[] = { "Authorization" };
     http.collectHeaders(otaHeaders, 1);
     http.on("/update", HTTP_POST, onUpdateEnd, onUpdateChunk);
+    // Die Pruefung im Upload-Handler greift erst, wenn der Koerper durch ist -
+    // der Browser wuerde also erst ein Megabyte hochladen, dann 401 bekommen,
+    // nachfragen und nochmal hochladen. Dieser GET laesst ihn vorher fragen.
+    http.on("/update", HTTP_GET, []() {
+        if (!http.authenticate("admin", OTA_PASS)) { http.requestAuthentication(); return; }
+        http.send(204, "text/plain", "");
+    });
 
     http.on("/", HTTP_GET, []() {
         http.sendHeader("Cache-Control", "no-store");
