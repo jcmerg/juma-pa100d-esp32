@@ -153,26 +153,48 @@ bevor das erste Bandkommando fliegt. Beenden mit kurzem PWR-Druck.
 
 ### Passwörter setzen
 
-Die Defaults in `include/config.h` sind **Platzhalter** und müssen vor dem
-Einsatz ersetzt werden — sie schützen den AP-Fallback und das Firmware-Update:
+Es gibt zwei, beide stehen als **Platzhalter** in `include/config.h` und müssen
+vor dem Einsatz ersetzt werden:
+
+| Konstante | Platzhalter | schützt |
+|---|---|---|
+| `OTA_PASSWORD` | `changeme` | Firmware-Upload — Basic-Auth `admin` / Passwort auf `POST /update`, ebenso espota |
+| `AP_PASSWORD` | `changeme01` | den Notfall-AP `JUMA-PA`, wenn kein WLAN konfiguriert ist |
+
+Das erste ist das wichtigere: wer das Gerät im Netz erreicht, kann damit eine
+beliebige Firmware aufspielen.
+
+Gesetzt werden sie in **`platformio_local.ini`** — die Datei steht in der
+`.gitignore` und landet damit nie im Repo:
 
 ```ini
-; platformio.ini
-build_flags =
-    -DAP_PASSWORD='"..."'      ; mindestens 8 Zeichen
-    -DOTA_PASSWORD='"..."'
+; platformio_local.ini
+[secrets]
+flags =
+    -DAP_PASSWORD='"deinAPpasswort"'      ; mindestens 8 Zeichen
+    -DOTA_PASSWORD='"deinOTApasswort"'
 ```
 
-Beim Wechsel gilt die Henne-Ei-Regel: der Upload, der das neue Passwort
-installiert, braucht noch das **alte**.
+Die versionierte `platformio.ini` bindet sie über `extra_configs` ein und hält
+selbst nur einen leeren `[secrets]`-Abschnitt. **Fehlt die lokale Datei, baut
+das Projekt trotzdem** und fällt auf die Platzhalter aus `config.h` zurück — für
+den ersten Versuch am Schreibtisch reicht das, für den Betrieb nicht.
+
+Zwei Dinge, die dabei auffallen:
+
+- **Henne und Ei.** Der Upload, der das neue Passwort installiert, braucht noch
+  das **alte**. Einmalig also `JUMA_OTA_PASS=changeme ./tools/flash-wifi.sh`,
+  danach nicht mehr.
+- `tools/flash-wifi.sh` liest das Passwort selbst aus `platformio_local.ini`,
+  wenn `JUMA_OTA_PASS` nicht gesetzt ist — dieselbe Quelle, aus der auch die
+  Firmware gebaut wurde, also kein zweiter Ort zum Pflegen.
 
 ### Bauen und flashen
 
 ```sh
 pio run                                  # bauen
 pio run -t upload                        # erstes Mal per USB
-export JUMA_OTA_PASS=...                 # danach über WLAN
-./tools/flash-wifi.sh juma-pa.local
+./tools/flash-wifi.sh juma-pa.local      # danach über WLAN
 ./tests/run.sh                           # Hosttests, kein ESP32 nötig
 ```
 
@@ -525,9 +547,16 @@ Deshalb nimmt der ESP32 die Firmware zusätzlich selbst per `POST /update` an
 (`Update.h`, Basic-Auth `admin`):
 
 ```sh
+./tools/flash-wifi.sh juma-pa.local      # holt das Passwort aus platformio_local.ini
+# oder von Hand:
 curl -u admin:$JUMA_OTA_PASS -F firmware=@.pio/build/esp32dev/firmware.bin \
      http://juma-pa.local/update
 ```
+
+Im Dashboard geht es auch über das Upload-Feld. Dort fragt der Browser vorher
+nach `admin` und dem Passwort — die Seite löst das mit einem geschützten
+`GET /update` aus, bevor die Datei läuft. Ohne das würde erst das ganze
+Megabyte hochgeladen, dann käme 401, und nach der Abfrage ginge es von vorn los.
 
 Das läuft in der Richtung Host → Gerät und ist von der Netztrennung unabhängig.
 mDNS (`juma-pa.local`) löst über Segmentgrenzen ebenfalls nicht auf, dort die IP
