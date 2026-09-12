@@ -65,20 +65,44 @@ GPIO16/17 sind die Standardpins von UART2 und auf WROOM-Modulen frei. Auf
 **WROVER** belegt das PSRAM diese Pins — dort z. B. 25/26 nehmen und
 `include/config.h` anpassen. UART0 bleibt die USB-Konsole.
 
-### Welche Ader ist welche?
+### Welches Pad ist welches?
 
 Die Beschriftung der Billigmodule ist uneinheitlich — manche labeln die TTL-,
-manche die RS-232-Seite. Variantenunabhängig bestimmen:
+manche die RS-232-Seite, und die ganz kleinen Platinen verzichten auf Text
+komplett. **Eine einzige Messung löst das variantenunabhängig auf:**
 
-1. Modul an 3,3 V, TTL-TXD offen lassen, nichts an die PA.
-2. Am RS-232-Ausgang gegen GND messen: dort stehen ca. **−5,5 V**. Das ist der
-   **Treiberausgang** → an **Tip**.
+1. Nur **3,3 V und GND** anlegen, sonst nichts — keine Verbindung zur PA.
+2. Alle Datenpins gegen GND messen. Genau einer steht bei ca. **−5,5 V**: das
+   ist der **RS-232-Treiberausgang** → an **Tip** der Klinke.
 3. Der andere RS-232-Pin ist der Empfängereingang → an **Ring**.
 
 Gegenprobe an der PA: **Ring gegen Sleeve** muss im Ruhezustand ca. **−5 V**
 zeigen, RS-232-Mark ist negativ. Zeigt stattdessen Tip das, stehen die Jumper
 auf dem Frequency-Sense-Board in der „software update"-Stellung und Tip/Ring
 sind vertauscht.
+
+#### Beispiel: „mini RS232 ↔ TTL"-Platine mit MAX3232ESE+
+
+Die verbreitete Streichholzschachtel-Platine (ca. 2 €) ist elektrisch passend —
+richtiger Chip, 3,0–5,5 V, Ladungspumpen-Kondensatoren an Bord —, hat aber
+**keine Steckverbinder und keine Textbeschriftung**. Acht Lötpads, vier je
+Seite, nur mit Symbolen versehen:
+
+| Symbol | Bedeutung |
+|---|---|
+| `\|` | GND |
+| `+` | VCC |
+| `→` / `←` | Datenrichtung durch die Platine |
+
+VCC und GND liegen auf **beiden** Seiten, die Versorgung kann also von der
+bequemeren Seite kommen. Welche physische Seite RS-232 ist und welche TTL,
+steht nirgends — mit der Messung oben braucht man es auch nicht zu wissen:
+
+1. Das Pad mit ca. **−5,5 V** ist der RS-232-Treiberausgang → **Tip**.
+2. Dessen **Pfeilrichtung** merken. Das Pad mit demselben Pfeil auf der anderen
+   Seite ist der zugehörige TTL-Eingang → **GPIO17**.
+3. Das andere Pfeilpaar ist der Gegenweg: RS-232-Eingang → **Ring**,
+   TTL-Ausgang → **GPIO16**.
 
 ### HF-Umgebung
 
