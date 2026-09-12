@@ -557,14 +557,20 @@ keine Nachrichten mehr kommen (deshalb der 500-ms-Poll). Und Feld 6 ist ein
 ```
 show                aktuelle Konfiguration und Zustand
 scan                WLAN-Scan
-hostname <name>     Netzname für WLAN, mDNS und OTA
+hostname <name>     Netzname fuer WLAN, mDNS und OTA
 ssid <name>         WLAN-SSID setzen
 pass <secret>       WLAN-Passwort setzen
-tci <host> [port]   TCI-Host der SDR-Software
+tci <host> [port]   TCI-Host der SDR-Software (Port default 50002)
 tcien <0|1>         TCI-Client aus/ein
 autoband <0|1>      Bandwahl per TCI aus/ein
-tcilosta <0|1>      bei TCI-Verlust =A senden
 otastby <0|1>       vor dem Firmware-Update =S an die PA
+tcilosta <0|1>      bei TCI-Verlust =A senden (PA waehlt wieder selbst)
+tempwarn <grad>     Vorwarnung ab dieser Temperatur
+temphigh <grad>     ab hier rot in der Anzeige
+tempalarm <0|1>     Vorwarnung aus/ein
+swrwarn <wert>      SWR-Vorwarnung ab diesem Wert
+swrhigh <wert>      SWR ab hier rot in der Anzeige
+swralarm <0|1>      SWR-Vorwarnung aus/ein
 sel <a|m>           Bandwahl der PA auf Automatik / Manuell
 save                speichern und neu starten
 reboot              nur neu starten
