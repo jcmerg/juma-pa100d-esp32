@@ -746,7 +746,10 @@ if(!$("panel").classList.contains("on")){
   $("tcihost").value=s.tciHost;$("tciport").value=s.tciPort;$("ssid").value=s.ssid;
   $("tcien").className="sw"+(s.tciEnabled?" on":"");
   $("otastby").className="sw"+(s.otaStandby?" on":"");
-  $("tcilosta").className="sw"+(s.tciLostAuto?" on":"")}}
+  $("tcilosta").className="sw"+(s.tciLostAuto?" on":"");
+  $("tempalarm").className="sw"+(s.tempAlarm?" on":"");
+  $("tempwarn").value=s.tempWarn;
+  $("temphigh").value=s.tempHigh}}
 
 applyLang();
 // Ein stehengebliebenes Dashboard mit alten Werten sieht aus wie ein Hänger -
