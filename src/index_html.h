@@ -275,13 +275,13 @@ tAtt:"Abschwächer",bClear:"Alarm quittieren",alarmTitle:"JUMA PA-100D: Alarm",a
 cfgHdr:"Konfiguration",lHost:"Gerätename (mDNS, OTA)",lSsid:"WLAN SSID",lPass:"WLAN Passwort",phPass:"unverändert lassen",
 lTciHost:"TCI Host (SDR-Software)",lTciPort:"TCI Port",lTciOn:"TCI aktiv",lTciLost:"Bei TCI-Verlust auf Automatik der PA",tciLostHint:"Schickt nach 15 s ohne TCI ein =A. Welche Methode die PA dann nutzt, steht in ihrer eigenen Konfiguration (F-Sense, FT-817, Yaesu CAT, KX2/KX3, JUMA-TRX2) — steht sie dort auf Manual, bringt =A nichts. Ohne diesen Schalter bleibt die PA auf dem zuletzt kommandierten Band, weil =Bn sie von A auf M schaltet.",
 bSave:"Speichern & neu starten",lFw:"Firmware-Update",bUpload:"Hochladen",
-lOff:"Verstärker abschalten",lLang:"Sprache",lTheme:"Darstellung",thSystem:"System",thLight:"Hell",thDark:"Dunkel",lOtaStby:"Vor dem Update auf STANDBY",otaStbyHint:"Schickt =S, bevor die neue Firmware geschrieben wird. Während des Schreibens und des Neustarts regelt nichts die PA. Aus lassen, wenn dir Entwicklungs-Uploads nicht die Betriebsart wegnehmen sollen.",
+lOff:"Verstärker abschalten",lLang:"Sprache",lTheme:"Darstellung",thSystem:"System",thLight:"Hell",thDark:"Dunkel",lOtaStby:"Vor dem Update auf STANDBY",otaStbyHint:"Wirkt sofort. Schickt =S, bevor die neue Firmware geschrieben wird. Während des Schreibens und des Neustarts regelt nichts die PA. Aus lassen, wenn dir Entwicklungs-Uploads nicht die Betriebsart wegnehmen sollen.",
 offHint:"Schickt <code>=P0</code> ohne Zustandsspeicherung. Einschalten geht nur am Gerät — zweimal drücken zur Bestätigung.",
 fans:["Aus","Langsam","Mittel","Schnell"],
 alarms:["SWR zu hoch","Überstrom","Übertemperatur","Überspannung",
         "Unterspannung Vorwarnung","Unterspannung Abschaltung"],
 auto:"Automatik",manual:"Manuell",selConflict:"PA wählt selbst, obwohl TCI-Bandwahl an ist",selLocked:"Bei aktiver TCI-Bandwahl bestimmt der ESP32 das Band und hält die PA auf Manuell.",cels:"Celsius",fahr:"Fahrenheit",
-tNorm:"normal",tWarm:"warm",tHot:"zu heiß",tooHot:"Temperatur %s°",lTempWarn:"Warnung ab (°)",lTempHigh:"Rot ab (°)",lTempAlarm:"Temperatur-Vorwarnung",tempHint:"Die PA setzt ihr Alarmbit erst beim Abschalten — dann bleibt keine Zeit mehr. Diese Warnung schlägt vorher an, mit demselben Ton und Banner. Sinnvoll ist ein Wert deutlich unter der Abschaltgrenze des Geräts (Werksvorgabe 70°, einstellbar 50–100°).",unitStep:"Stufe",
+tNorm:"normal",tWarm:"warm",tHot:"zu heiß",tooHot:"Temperatur %s°",lTempWarn:"Warnung ab (°)",lTempHigh:"Rot ab (°)",lTempAlarm:"Temperatur-Vorwarnung",tempHint:"Wirkt sofort, ohne Speichern. Die PA setzt ihr Alarmbit erst beim Abschalten — dann bleibt keine Zeit mehr. Diese Warnung schlägt vorher an, mit demselben Ton und Banner. Sinnvoll ist ein Wert deutlich unter der Abschaltgrenze des Geräts (Werksvorgabe 70°, einstellbar 50–100°).",unitStep:"Stufe",
 running:"Läuft: ",noFile:"keine Datei gewählt",auth:"Anmeldung…",loading:"lade %s kB…",
 upOk:"OK — Gerät startet neu",upErr:"Fehler %s",upAbort:"Übertragung abgebrochen",
 saving:"speichere…",restarting:"Gerät startet neu",saved:"Gespeichert — Gerät startet neu",wsLost:"Verbindung zum Gerät unterbrochen — versuche erneut…",
@@ -304,13 +304,13 @@ tAtt:"Attenuator",bClear:"Clear alarm",alarmTitle:"JUMA PA-100D: alarm",alarmBod
 cfgHdr:"Setup",lHost:"Device name (mDNS, OTA)",lSsid:"Wi-Fi SSID",lPass:"Wi-Fi password",phPass:"leave unchanged",
 lTciHost:"TCI host (SDR software)",lTciPort:"TCI port",lTciOn:"TCI enabled",lTciLost:"Fall back to the PA\u2019s own band select",tciLostHint:"Sends =A after 15 s without TCI. Which method the PA then uses is set in its own configuration (F-Sense, FT-817, Yaesu CAT, KX2/KX3, JUMA-TRX2) — if that is set to Manual, =A achieves nothing. Without this switch the PA stays on the last commanded band, because =Bn moves it from A to M.",
 bSave:"Save & restart",lFw:"Firmware update",bUpload:"Upload",
-lOff:"Power down amplifier",lLang:"Language",lTheme:"Appearance",thSystem:"System",thLight:"Light",thDark:"Dark",lOtaStby:"Standby before update",otaStbyHint:"Sends =S before the new firmware is written. Nothing controls the PA while writing and rebooting. Turn off if development uploads should not take away the operating state.",
+lOff:"Power down amplifier",lLang:"Language",lTheme:"Appearance",thSystem:"System",thLight:"Light",thDark:"Dark",lOtaStby:"Standby before update",otaStbyHint:"Applies immediately. Sends =S before the new firmware is written. Nothing controls the PA while writing and rebooting. Turn off if development uploads should not take away the operating state.",
 offHint:"Sends <code>=P0</code> without saving state. Powering on is only possible at the unit — press twice to confirm.",
 fans:["Off","Slow","Medium","Fast"],
 alarms:["High SWR","Over-current","High temperature","High voltage",
         "Low voltage pre-limit","Low voltage final limit"],
 auto:"Automatic",manual:"Manual",selConflict:"PA selects on its own while TCI band select is on",selLocked:"With TCI band select on, the ESP32 determines the band and holds the PA on Manual.",cels:"Celsius",fahr:"Fahrenheit",
-tNorm:"normal",tWarm:"warm",tHot:"too hot",tooHot:"temperature %s°",lTempWarn:"Warn above (°)",lTempHigh:"Red above (°)",lTempAlarm:"Temperature pre-warning",tempHint:"The PA only sets its alarm bit when it shuts down — too late to react. This warning trips earlier, with the same tone and banner. Pick a value well below the unit\u2019s cut-out (factory default 70°, adjustable 50–100°).",unitStep:"Step",
+tNorm:"normal",tWarm:"warm",tHot:"too hot",tooHot:"temperature %s°",lTempWarn:"Warn above (°)",lTempHigh:"Red above (°)",lTempAlarm:"Temperature pre-warning",tempHint:"Applies immediately, no saving needed. The PA only sets its alarm bit when it shuts down — too late to react. This warning trips earlier, with the same tone and banner. Pick a value well below the unit\u2019s cut-out (factory default 70°, adjustable 50–100°).",unitStep:"Step",
 running:"Running: ",noFile:"no file selected",auth:"Authenticating…",loading:"uploading %s kB…",
 upOk:"OK — device restarting",upErr:"Error %s",upAbort:"transfer aborted",
 saving:"saving…",restarting:"device restarting",saved:"Saved — device restarting",wsLost:"Connection to the device lost — retrying…",
@@ -464,8 +464,23 @@ $("ab").onclick=function(){send("autoband",st.autoband?0:1)};
 $("bSelM").onclick=function(){send("bandsel",0)};
 $("bSelA").onclick=function(){send("bandsel",1)};
 $("tcien").onclick=function(e){e.currentTarget.classList.toggle("on")};
-$("otastby").onclick=function(e){e.currentTarget.classList.toggle("on")};
-$("tempalarm").onclick=function(e){e.currentTarget.classList.toggle("on")};
+// Sofort wirksam statt ueber das Formular: diese Felder stehen ausserhalb
+// davon und wurden beim Speichern gar nicht mitgeschickt.
+function liveSwitch(id,cmd){
+  $(id).onclick=function(e){
+    const on=!e.currentTarget.classList.contains("on");
+    e.currentTarget.classList.toggle("on",on);
+    send(cmd,on?1:0);
+  };
+}
+liveSwitch("otastby","otastby");
+liveSwitch("tempalarm","tempalarm");
+["tempwarn","temphigh"].forEach(function(id){
+  $(id).onchange=function(){
+    const v=parseInt(this.value,10);
+    if(v>=20&&v<=120)send(id,v); else this.value=st[id==="tempwarn"?"tempWarn":"tempHigh"];
+  };
+});
 $("tcilosta").onclick=function(e){e.currentTarget.classList.toggle("on")};
 
 function panel(on){$("panel").classList.toggle("on",on);$("scrim").classList.toggle("on",on);
@@ -482,8 +497,6 @@ offArm=0;b.textContent="Power OFF";send("poweroff",0)};
 
 $("cfg").onsubmit=function(e){e.preventDefault();const f=new FormData(e.target);
 f.set("tcien",$("tcien").classList.contains("on")?"1":"0");
-f.set("otastby",$("otastby").classList.contains("on")?"1":"0");
-f.set("tempalarm",$("tempalarm").classList.contains("on")?"1":"0");
 f.set("tcilosta",$("tcilosta").classList.contains("on")?"1":"0");
 $("cfgSt").textContent=t("saving");
 fetch("/api/config",{method:"POST",body:new URLSearchParams(f)})

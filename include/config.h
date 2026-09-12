@@ -3,7 +3,7 @@
 
 // Nur die Zahl hochzaehlen - so laesst sich nach einem OTA-Update pruefen,
 // was wirklich laeuft.
-#define FW_VERSION "1.10.0"
+#define FW_VERSION "1.10.1"
 
 // ---------------------------------------------------------------------------
 // Hardware

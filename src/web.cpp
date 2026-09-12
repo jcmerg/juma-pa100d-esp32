@@ -185,6 +185,19 @@ static void handleCmd(const char* text) {
             else log_w("Bandwahl manuell: PA meldet Band %u, kein =Bn moeglich", b);
         }
     }
+    // Diese drei brauchen keinen Neustart und wirken deshalb sofort - ein
+    // Schalter, der erst durch "Speichern & neu starten" wirksam wird, sieht
+    // aus als taete er nichts.
+    else if (name == "tempwarn" || name == "temphigh") {
+        if (v >= 20 && v <= 120) {
+            if (name == "tempwarn") cfg.tempWarn = (uint8_t)v;
+            else                    cfg.tempHigh = (uint8_t)v;
+            if (cfg.tempHigh < cfg.tempWarn) cfg.tempHigh = cfg.tempWarn;
+            settingsSave();
+        }
+    }
+    else if (name == "tempalarm") { cfg.tempAlarm  = (v != 0); settingsSave(); }
+    else if (name == "otastby")   { cfg.otaStandby = (v != 0); settingsSave(); }
     else if (name == "autoband") {
         cfg.autoband = (v != 0);
         settingsSave();

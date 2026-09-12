@@ -311,6 +311,11 @@ auch wenn die PA noch keinen Alarm meldet. Schwelle und Rotzone sind in den
 Einstellungen konfigurierbar (`tempwarn`, `temphigh`, `tempalarm`), Vorgabe
 50 ° und 60 °.
 
+Diese drei wirken **sofort**, ohne „Speichern & neu starten" — genau wie die
+Bedienelemente im Hauptbild. Sie brauchen keinen Neustart, und ein Schalter,
+der erst durch einen weit entfernten Speichern-Knopf wirksam wird, sieht aus,
+als täte er nichts. Dasselbe gilt für „Vor dem Update auf STANDBY".
+
 Der Ton startet erst, nachdem die Seite einmal angeklickt wurde — so verlangt es
 die Autoplay-Richtlinie der Browser. Abschaltbar in den Einstellungen.
 
