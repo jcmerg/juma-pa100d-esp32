@@ -4,12 +4,14 @@
 
 // in main.cpp
 uint32_t wifiDropCount();
+uint32_t wifiRoamCount();
 #include "juma.h"
 #include "tci.h"
 #include "web.h"
 
 // in main.cpp
 uint32_t wifiDropCount();
+uint32_t wifiRoamCount();
 #include "bands.h"
 #include <Arduino.h>
 #include <WiFi.h>
@@ -100,8 +102,9 @@ static void show() {
     io->printf("Heap      %u frei, groesster Block %u, Minimum seit Start %u\n",
                   (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMaxAllocHeap(),
                   (unsigned)ESP.getMinFreeHeap());
-    io->printf("Laufzeit  %lu s   WLAN-Abbrueche %lu\n\n",
-                  (unsigned long)(millis() / 1000), (unsigned long)wifiDropCount());
+    io->printf("Laufzeit  %lu s   WLAN: %lu Abbrueche, %lu AP-Wechsel\n\n",
+                  (unsigned long)(millis() / 1000),
+                  (unsigned long)wifiDropCount(), (unsigned long)wifiRoamCount());
 }
 
 static void scan() {

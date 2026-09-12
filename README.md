@@ -435,6 +435,7 @@ Grundsatz: bei jeder Störung wird **nichts geschaltet**, statt zu raten.
 | Alarm der PA | Wird angezeigt, **nicht** automatisch quittiert |
 | Hauptschleife hängt | Task-Watchdog (20 s) startet neu |
 | WLAN bleibt weg | Reconnect alle 15 s, nach 5 Minuten Neustart |
+| RSSI dauerhaft schlecht | nach 1 Minute unter −75 dBm neu verbinden, sucht den stärksten AP |
 
 Beim TCI-Abbruch werden QRG und TX-Zustand bewusst zurückgesetzt. Sonst würde
 ein eingefrorenes `tx = true` — Abbruch mitten im Senden — den Bandwechsel nach
@@ -617,6 +618,19 @@ Kanal 3:
 | Paketverlust | 45 % | **0 %** |
 | Ping-Median / Max | 19 ms / 5010 ms | **5,7 ms / 29 ms** |
 | Seite (40 kB) | 0,4–0,5 s | **0,15–0,21 s** |
+
+**Und der ESP32 roamt nicht.** Einmal assoziiert, bleibt er an seinem AP, auch
+wenn der Pegel einbricht — arduino-esp32 hat keine Roaming-Logik. Bei mehreren
+APs auf derselben SSID (CAPsMAN, UniFi und Ähnliches) hängt er dann am
+schlechtesten, ohne dass die Verbindung je formal abbricht. Deshalb verbindet
+der Supervisor neu, wenn RSSI länger als eine Minute unter −75 dBm liegt,
+höchstens alle fünf Minuten. Die Suche nimmt dabei wieder den stärksten AP.
+
+Auf der Gegenseite hilft eine Access-List, die zu schwache Clients abweist —
+in CAPsMAN etwa `signal-range=-120..-80 action=reject`. Dann muss der Client
+sich einen anderen AP suchen, statt an einem schlechten zu kleben. Die Schwelle
+mit Bedacht wählen: liegt sie zu hoch, kommt das Gerät von manchen Plätzen gar
+nicht mehr ins Netz.
 
 Der `scan`-Befehl auf der Konsole zeigt, was das Gerät selbst hört — damit lässt
 sich „zu weit weg" von „Kanal zugestopft" unterscheiden, bevor man an der

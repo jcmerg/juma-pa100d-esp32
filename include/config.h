@@ -3,7 +3,7 @@
 
 // Nur die Zahl hochzaehlen - so laesst sich nach einem OTA-Update pruefen,
 // was wirklich laeuft.
-#define FW_VERSION "1.8.1"
+#define FW_VERSION "1.9.0"
 
 // ---------------------------------------------------------------------------
 // Hardware
@@ -47,6 +47,14 @@ static const uint32_t BAND_SETTLE_MS   = 150;
 static const uint32_t WIFI_CHECK_MS        = 5000;    // wie oft nachsehen
 static const uint32_t WIFI_RETRY_MS        = 15000;   // Abstand der Reconnects
 static const uint32_t WIFI_REBOOT_AFTER_MS = 300000;  // danach Neustart (5 min)
+
+// Der ESP32 kann nicht roamen: einmal assoziiert, bleibt er an seinem AP, auch
+// wenn der Pegel einbricht. Bei mehreren APs auf derselben SSID (CAPsMAN o.ae.)
+// haengt er dann am schlechtesten. Faellt RSSI laenger als WIFI_ROAM_HOLD_MS
+// unter WIFI_ROAM_RSSI, verbindet er neu - und sucht dabei den staerksten.
+static const int32_t  WIFI_ROAM_RSSI     = -75;      // dBm
+static const uint32_t WIFI_ROAM_HOLD_MS  = 60000;    // so lange muss es anliegen
+static const uint32_t WIFI_ROAM_MIN_GAP  = 300000;   // hoechstens alle 5 min
 
 // Task-Watchdog: startet neu, falls die Hauptschleife je haengenbleibt.
 // Grosszuegig bemessen, weil ein Firmware-Upload lange in einem einzigen

@@ -15,8 +15,9 @@ iv   = float(sys.argv[2]) if len(sys.argv) > 2 else 30
 dur  = float(sys.argv[3]) if len(sys.argv) > 3 else 240
 
 url = "http://%s/api/state" % host
-print("# %-19s %7s %8s %9s %8s %5s %5s %s" %
-      ("Zeit", "Laufz", "frei", "gr.Block", "Minimum", "RSSI", "Drops", "Ereignis"), flush=True)
+print("# %-19s %7s %8s %9s %8s %5s %5s %5s %s" %
+      ("Zeit", "Laufz", "frei", "gr.Block", "Minimum", "RSSI", "Drops", "Roam",
+       "Ereignis"), flush=True)
 
 last_up = None
 misses = 0
@@ -27,8 +28,8 @@ while time.time() < t_end:
         d = json.load(urllib.request.urlopen(url, timeout=5))
     except Exception as e:
         misses += 1
-        print("%-21s %7s %8s %9s %8s %5s %5s UNERREICHBAR (%d in Folge) %s" %
-              (ts, "-", "-", "-", "-", "-", "-", misses, type(e).__name__), flush=True)
+        print("%-21s %7s %8s %9s %8s %5s %5s %5s UNERREICHBAR (%d in Folge) %s" %
+              (ts, "-", "-", "-", "-", "-", "-", "-", misses, type(e).__name__), flush=True)
         time.sleep(iv)
         continue
 
@@ -41,9 +42,10 @@ while time.time() < t_end:
         ev = (ev + " | " if ev else "") + "NEUSTART (vorher %d s)" % last_up
     last_up = up
 
-    print("%-21s %7d %8d %9d %8d %5d %5d %s" %
+    print("%-21s %7d %8d %9d %8d %5d %5d %5d %s" %
           (ts, up, d.get("heap", 0), d.get("heapMax", 0), d.get("heapMin", 0),
-           d.get("rssi", 0), d.get("wifiDrops", 0), ev), flush=True)
+           d.get("rssi", 0), d.get("wifiDrops", 0), d.get("wifiRoams", 0), ev),
+          flush=True)
     time.sleep(iv)
 
 print("# Ende", flush=True)
