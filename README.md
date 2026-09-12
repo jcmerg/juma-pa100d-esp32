@@ -235,8 +235,19 @@ steht, was im Betrieb gebraucht wird.
 | VSWR | 1–3 | einstellbar, Vorgabe 2,0 | einstellbar, Vorgabe 2,5 | Segmentbalken |
 | PA Temp | 20–80 °C | 50 | 60 | Rundanzeige, 180° |
 | Lüfter | 4 Stufen | Mittel | Schnell | Rundanzeige mit Stufentext |
-| Spannung | 10–15,5 V | < 11,2 / > 14,0 | < 11,0 / > 14,8 | Rundanzeige |
+| Spannung | 10–15,5 V | < 11,2 / > 14,0 | < 11,0 / > 14,8 | Rundanzeige mit Marke |
 | Strom | 0–24 A | 19,2 | 21,6 | Rundanzeige |
+
+Die Spannungsanzeige arbeitet mit einer **Marke auf fester Zonenskala** statt
+mit einem Balken von unten. Bei einer Größe, die sich zwischen 12 und 14 V
+bewegt, während die Skala bei 10 beginnt, wäre ein Füllbalken in beide
+Richtungen irreführend: im Normalbetrieb überdeckt er die rote
+Unterspannungszone, und bei Überspannung färbt er den gesamten Bereich rot, als
+wäre alles kritisch. Das Manual beschreibt das Instrument der PA selbst als
+*suppressed-zero voltmeter* — genau diese Bauart.
+
+RF, Strom und Lüfter behalten den Füllbalken: das sind Mengen, die tatsächlich
+von null weg wachsen.
 
 Die Spannungsgrenzen sind die **Defaults der PA**: Unterspannung 11,00 V,
 Vorwarnung 11,20 V, Überspannung 14,80 V (ab 14,00 V einstellbar), Nennspannung

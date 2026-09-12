@@ -344,7 +344,7 @@ const AMASK=[1,2,4,8,16,32];
 let C={};
 function readColors(){
   const cs=getComputedStyle(document.documentElement);
-  ["ok","warn","bad","off","sw"].forEach(function(k){
+  ["ok","warn","bad","off","sw","fg"].forEach(function(k){
     C[k]=cs.getPropertyValue("--"+k).trim()});
 }
 readColors();
@@ -395,7 +395,12 @@ function arcPath(r,d0,d1){
   return "M"+p0[0].toFixed(2)+" "+p0[1].toFixed(2)+" A"+r+" "+r+" 0 "+
          ((d1-d0)>180?1:0)+" 1 "+p1[0].toFixed(2)+" "+p1[1].toFixed(2);
 }
-function mkGauge(el,zones,unit,ticks){
+// mark=true: statt eines Bogens von unten nur eine Marke am Messwert. Fuer
+// Groessen, die sich in einem schmalen Band bewegen - ein gefuellter Bogen
+// wuerde dort die Zonen ueberdecken und bei Ueberschreitung den gesamten
+// Bereich einfaerben, als waere alles kritisch.
+function mkGauge(el,zones,unit,ticks,mark){
+  el.dataset.mark = mark ? "1" : "";
   let g='<svg viewBox="-10 -10 120 74">';
   zones.forEach((z,i)=>{
     const f0=i?zones[i-1][0]:0;
@@ -414,10 +419,20 @@ function mkGauge(el,zones,unit,ticks){
   el.innerHTML=g;
 }
 function setGauge(el,frac,text,color){
+  const mark=el.dataset.mark==="1";
   const sv=el.querySelector("svg"); if(!sv)return;
   const val=sv.querySelector(".gval"),num=sv.querySelector(".gv");
   const f=Math.max(0,Math.min(1,frac||0));
-  val.setAttribute("d", f<=0.001 ? "" : arcPath(GR,0,f*GA1));
+  if(mark){
+    const a=f*GA1, w=2.6;
+    val.setAttribute("d", arcPath(GR,Math.max(0,a-w),Math.min(GA1,a+w)));
+    val.setAttribute("stroke",C.fg);            // Kontrast statt Zonenfarbe,
+    val.setAttribute("stroke-width","15");      // sonst geht sie in der Zone unter
+    num.textContent=text; num.setAttribute("fill",color);
+    return;
+  }else{
+    val.setAttribute("d", f<=0.001 ? "" : arcPath(GR,0,f*GA1));
+  }
   val.setAttribute("stroke",color);
   num.textContent=text;
   num.setAttribute("fill",color);
@@ -456,7 +471,8 @@ function buildGauges(){
           t("unitStep"),[[.125,"0"],[.375,"1"],[.625,"2"],[.875,"3"]]);
   mkGauge($("gVolt"),[[vf(VUV),C.bad],[vf(VPRE),C.warn],[vf(VOVA),C.ok],
                       [vf(VOV),C.warn],[1,C.bad]],
-          "V",[[0,"10"],[vf(VUV),"11"],[vf(13.8),"13.8"],[1,"15.5"]]);
+          "V",[[0,"10"],[vf(VUV),"11"],[vf(13.8),"13.8"],[1,"15.5"]],true);
+  $("gVolt").querySelectorAll(".gz").forEach(function(z){z.style.strokeOpacity=".75"});
   mkGauge($("gAmp"),[[IW1,C.ok],[IW2,C.warn],[1,C.bad]],
           "A",[[0,"0"],[.5,"12"],[1,"24"]]);
 }
