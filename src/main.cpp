@@ -19,6 +19,54 @@
 #include "console.h"
 
 static uint32_t lastBandCmd  = 0;
+
+// ---------------------------------------------------------------------------
+// WLAN-Ueberwachung
+// ---------------------------------------------------------------------------
+static uint32_t wifiLastOk   = 0;
+static uint32_t wifiRetryAt  = 0;
+static uint32_t wifiCheckAt  = 0;
+static uint32_t wifiDrops_   = 0;
+static bool     wifiWasUp    = false;
+
+uint32_t wifiDropCount() { return wifiDrops_; }
+uint32_t wifiDownSecs()  {
+    return (WiFi.status() == WL_CONNECTED) ? 0 : (millis() - wifiLastOk) / 1000;
+}
+
+static void wifiSupervise() {
+    if (millis() - wifiCheckAt < WIFI_CHECK_MS) return;
+    wifiCheckAt = millis();
+
+    // Ohne konfigurierte SSID ist der AP-Modus der gewollte Zustand.
+    if (!cfg.ssid.length()) return;
+
+    if (WiFi.status() == WL_CONNECTED) {
+        if (!wifiWasUp) log_i("WLAN wieder da: %s", WiFi.localIP().toString().c_str());
+        wifiWasUp  = true;
+        wifiLastOk = millis();
+        return;
+    }
+
+    if (wifiWasUp) { wifiDrops_++; wifiWasUp = false; log_w("WLAN weg"); }
+
+    if (WiFi.getMode() == WIFI_STA && millis() - wifiRetryAt > WIFI_RETRY_MS) {
+        wifiRetryAt = millis();
+        // Neu verbinden statt reconnect(): reconnect() nimmt den zuletzt
+        // benutzten AP, begin() sucht mit den Einstellungen oben den staerksten.
+        WiFi.disconnect();
+        WiFi.begin(cfg.ssid.c_str(), cfg.pass.c_str());
+    }
+
+    // Kommt es laenger nicht zurueck, hilft nur ein Neustart - unerreichbar
+    // nuetzt das Geraet niemandem, und ein Neustart versucht es sauber neu.
+    if (millis() - wifiLastOk > WIFI_REBOOT_AFTER_MS) {
+        log_e("WLAN seit %lu s weg - Neustart", (unsigned long)wifiDownSecs());
+        Serial.flush();
+        delay(100);
+        ESP.restart();
+    }
+}
 static bool     tciWasUp     = false;   // war TCI ueberhaupt schon mal da?
 static uint32_t tciLostAt    = 0;
 static bool     autoSelSent  = false;   // '=A' nach dem Verlust schon raus?
@@ -105,6 +153,12 @@ static void wifiBegin() {
     WiFi.setHostname(cfg.hostname.c_str());
 
     if (cfg.ssid.length()) {
+        // Der Default ist WIFI_FAST_SCAN: damit nimmt der ESP32 den ERSTEN
+        // gefundenen Zugangspunkt der SSID, nicht den staerksten. Bei mehreren
+        // APs auf derselben SSID landet er so leicht auf dem schwaechsten -
+        // mit Paketverlust, der dann nach einem Firmwarefehler aussieht.
+        WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
+        WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
         WiFi.begin(cfg.ssid.c_str(), cfg.pass.c_str());
         uint32_t t0 = millis();
         while (WiFi.status() != WL_CONNECTED && millis() - t0 < 15000) delay(250);
@@ -121,6 +175,7 @@ static void wifiBegin() {
         // verworfen. Mit Modem-Sleep wartet jeder Roundtrip auf das naechste
         // Beacon (~100 ms); die 23-kB-Seite brauchte dadurch 6-20 s.
         WiFi.setSleep(false);
+        wifiWasUp = true;
         log_i("WLAN verbunden: %s, Sleep aus", WiFi.localIP().toString().c_str());
     }
 }
@@ -164,6 +219,7 @@ void setup() {
     esp_task_wdt_add(NULL);                   // loopTask ueberwachen
     Serial.printf("Watchdog aktiv (%lu s)\n", (unsigned long)WDT_TIMEOUT_S);
 
+    wifiLastOk = millis();
     consoleBegin();
 }
 
@@ -174,5 +230,6 @@ void loop() {
     tci.loop();
     webLoop();
     consoleLoop();
+    wifiSupervise();
     bandControl();
 }

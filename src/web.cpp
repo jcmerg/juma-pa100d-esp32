@@ -4,6 +4,7 @@
 #include "tci.h"
 #include "bands.h"
 #include "index_html.h"
+#include <WiFi.h>
 #include <WebServer.h>
 #include <WebSocketsServer.h>
 #include <Preferences.h>
@@ -32,6 +33,17 @@ static WebSocketsServer wsSrv(WS_PORT);
 static Preferences      prefs;
 static String           noteCode, noteArg;
 static uint32_t         lastPush = 0;
+
+// Fester Puffer statt String: der Zustand geht zweimal pro Sekunde raus, und
+// ein wachsender String realloziert dabei jedes Mal. Ueber Stunden fragmentiert
+// das den Heap - der freie Speicher bleibt hoch, der groesste zusammenhaengende
+// Block schrumpft, und irgendwann scheitert eine Allokation.
+static char             stateJson[1280];
+static size_t           stateLen = 0;
+
+// in main.cpp
+uint32_t wifiDropCount();
+uint32_t wifiDownSecs();
 
 void webSetNote(const char* code, const char* arg) {
     // bandControl() ruft das in jedem Durchlauf - ohne den Vergleich waere das
@@ -78,7 +90,7 @@ void settingsSave() {
 
 // --- Zustand als JSON ----------------------------------------------------
 
-static void buildState(String& out) {
+static void buildState() {
     const JumaStatus& s = juma.status();
     JsonDocument d;
     d["online"]  = juma.online();
@@ -113,7 +125,18 @@ static void buildState(String& out) {
     d["note"]    = noteCode;
     d["noteArg"] = noteArg;
     d["version"] = FW_VERSION;
-    serializeJson(d, out);
+    // Diagnose: der freie Heap allein sagt wenig - entscheidend ist der
+    // groesste zusammenhaengende Block. Faellt der, waehrend der freie Heap
+    // steht, ist es Fragmentierung.
+    d["heap"]      = ESP.getFreeHeap();
+    d["heapMin"]   = ESP.getMinFreeHeap();
+    d["heapMax"]   = ESP.getMaxAllocHeap();
+    d["uptime"]    = (uint32_t)(millis() / 1000);
+    d["rssi"]      = WiFi.RSSI();
+    d["wifiDrops"] = wifiDropCount();
+
+    stateLen = serializeJson(d, stateJson, sizeof(stateJson));
+    if (stateLen >= sizeof(stateJson) - 1) log_e("Zustand passt nicht in den Puffer");
 }
 
 // --- Kommandos vom Browser ("name:wert") ---------------------------------
@@ -250,8 +273,8 @@ void webBegin() {
         http.send_P(200, "text/html; charset=utf-8", INDEX_HTML);
     });
     http.on("/api/state", HTTP_GET, []() {
-        String s; buildState(s);
-        http.send(200, "application/json", s);
+        buildState();
+        http.send(200, "application/json", stateJson);
     });
     http.on("/api/config", HTTP_POST, onConfig);
     // sonst loggt der Core bei jedem Seitenaufruf ein [E] "handler not found"
@@ -270,8 +293,8 @@ void webBegin() {
             payload[len] = 0;
             handleCmd((const char*)payload);
         } else if (type == WStype_CONNECTED) {
-            String s; buildState(s);
-            wsSrv.sendTXT(num, s);
+            buildState();
+            wsSrv.sendTXT(num, stateJson, stateLen);
         }
     });
 }
@@ -285,8 +308,8 @@ void webLoop() {
     if (millis() - lastPush >= POLL_INTERVAL_MS) {
         lastPush = millis();
         if (wsSrv.connectedClients()) {
-            String s; buildState(s);
-            wsSrv.broadcastTXT(s);
+            buildState();
+            wsSrv.broadcastTXT(stateJson, stateLen);
         }
     }
 }

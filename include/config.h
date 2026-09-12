@@ -3,7 +3,7 @@
 
 // Nur die Zahl hochzaehlen - so laesst sich nach einem OTA-Update pruefen,
 // was wirklich laeuft.
-#define FW_VERSION "1.7.1"
+#define FW_VERSION "1.8.1"
 
 // ---------------------------------------------------------------------------
 // Hardware
@@ -40,6 +40,13 @@ static const uint32_t TCI_LOST_GRACE_MS = 15000;
 // Beruhigungszeit nach einer QRG-Aenderung, bevor ein Bandwechsel rausgeht.
 // Verhindert Bandkommandos beim Drehen ueber eine Bandgrenze.
 static const uint32_t BAND_SETTLE_MS   = 150;
+
+// WLAN-Ueberwachung. Der Watchdog hilft hier nicht: faellt das WLAN weg,
+// laeuft die Schleife munter weiter und fuettert ihn - das Geraet ist nur
+// unerreichbar. Von aussen sieht das aus wie ein Absturz.
+static const uint32_t WIFI_CHECK_MS        = 5000;    // wie oft nachsehen
+static const uint32_t WIFI_RETRY_MS        = 15000;   // Abstand der Reconnects
+static const uint32_t WIFI_REBOOT_AFTER_MS = 300000;  // danach Neustart (5 min)
 
 // Task-Watchdog: startet neu, falls die Hauptschleife je haengenbleibt.
 // Grosszuegig bemessen, weil ein Firmware-Upload lange in einem einzigen

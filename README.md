@@ -434,6 +434,7 @@ Grundsatz: bei jeder Störung wird **nichts geschaltet**, statt zu raten.
 | TX aktiv | Bandwechsel wird zurückgestellt und nachgeholt, sobald TX endet |
 | Alarm der PA | Wird angezeigt, **nicht** automatisch quittiert |
 | Hauptschleife hängt | Task-Watchdog (20 s) startet neu |
+| WLAN bleibt weg | Reconnect alle 15 s, nach 5 Minuten Neustart |
 
 Beim TCI-Abbruch werden QRG und TX-Zustand bewusst zurückgesetzt. Sonst würde
 ein eingefrorenes `tx = true` — Abbruch mitten im Senden — den Bandwechsel nach
@@ -602,6 +603,31 @@ Roundtrip auf das nächste Beacon:
 Dass die kleine JSON-Antwort *nicht* langsamer war, ist der entscheidende
 Hinweis: ein Roundtrip kostete ein Beacon-Intervall, viele Roundtrips fielen
 entsprechend ins Gewicht.
+
+**`WIFI_FAST_SCAN` nimmt den erstbesten AP, nicht den stärksten.** Das ist der
+Default von arduino-esp32. Hängen mehrere Zugangspunkte an derselben SSID,
+landet das Gerät leicht auf dem schwächsten — mit Paketverlust, der wie ein
+Firmwarefehler aussieht. Gemessen an einem Aufbau mit zwei APs derselben SSID
+(Kanal 5 schwach, Kanal 10 stark) und einem fremden Netz auf dem überlappenden
+Kanal 3:
+
+| | vorher | mit `WIFI_ALL_CHANNEL_SCAN` + `WIFI_CONNECT_AP_BY_SIGNAL` |
+|---|---|---|
+| RSSI | −74 dBm | **−64 dBm** |
+| Paketverlust | 45 % | **0 %** |
+| Ping-Median / Max | 19 ms / 5010 ms | **5,7 ms / 29 ms** |
+| Seite (40 kB) | 0,4–0,5 s | **0,15–0,21 s** |
+
+Der `scan`-Befehl auf der Konsole zeigt, was das Gerät selbst hört — damit lässt
+sich „zu weit weg" von „Kanal zugestopft" unterscheiden, bevor man an der
+Firmware sucht.
+
+**Kein WLAN-Wächter heißt: der Watchdog hilft nicht.** `WiFi.begin()` nur in
+`setup()` aufzurufen reicht nicht. Bricht das WLAN weg, läuft die Schleife
+munter weiter, füttert den Watchdog und pollt die PA — das Gerät ist lediglich
+unerreichbar. Von außen ist das von einem Absturz nicht zu unterscheiden.
+Deshalb prüft ein Supervisor alle 5 s, verbindet alle 15 s neu und startet nach
+5 Minuten ohne WLAN durch.
 
 **`WEBSOCKETS_SERVER_CLIENT_MAX` ist per Default 5.** Jeder Tab und jeder Reload
 belegt einen Platz, und Verbindungen, die der Browser nicht sauber geschlossen

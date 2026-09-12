@@ -1,9 +1,15 @@
 #include "console.h"
 #include "config.h"
 #include "web.h"
+
+// in main.cpp
+uint32_t wifiDropCount();
 #include "juma.h"
 #include "tci.h"
 #include "web.h"
+
+// in main.cpp
+uint32_t wifiDropCount();
 #include "bands.h"
 #include <Arduino.h>
 #include <WiFi.h>
@@ -88,8 +94,14 @@ static void show() {
                       s.celsius ? 'C' : 'F', s.alarms);
     io->printf("Browser   %u WebSocket-Clients verbunden\n", webClients());
     io->printf("Version   %s\n", FW_VERSION);
-    io->printf("Heap      %u Bytes frei, Uptime %lu s\n\n",
-                  (unsigned)ESP.getFreeHeap(), (unsigned long)(millis() / 1000));
+    // Der freie Heap allein taeuscht: entscheidend ist der groesste
+    // zusammenhaengende Block. Faellt der, waehrend "frei" steht, ist es
+    // Fragmentierung und nicht ein Leck.
+    io->printf("Heap      %u frei, groesster Block %u, Minimum seit Start %u\n",
+                  (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMaxAllocHeap(),
+                  (unsigned)ESP.getMinFreeHeap());
+    io->printf("Laufzeit  %lu s   WLAN-Abbrueche %lu\n\n",
+                  (unsigned long)(millis() / 1000), (unsigned long)wifiDropCount());
 }
 
 static void scan() {
