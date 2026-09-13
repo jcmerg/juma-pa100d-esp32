@@ -3,7 +3,7 @@
 #include "juma.h"
 #include "tci.h"
 #include "bands.h"
-#include "index_html.h"
+#include "index_html_gz.h"
 #include <WiFi.h>
 #include <WebServer.h>
 #include <WebSocketsServer.h>
@@ -41,11 +41,6 @@ static uint32_t         lastPush = 0;
 static char             stateJson[1280];
 static size_t           stateLen = 0;
 
-// in main.cpp
-uint32_t wifiDropCount();
-uint32_t wifiDownSecs();
-uint32_t wifiRoamCount();
-int32_t  wifiRssiAvg();
 
 void webSetNote(const char* code, const char* arg) {
     // bandControl() ruft das in jedem Durchlauf - ohne den Vergleich waere das
@@ -125,8 +120,6 @@ static void buildState() {
     d["raw"]     = s.raw;
     d["autoband"]= cfg.autoband;
     d["tciConn"] = tci.connected();
-    d["tciMsgs"] = tci.rxMsgs();
-    d["tciDrops"] = tci.drops();
     d["tciHz"]   = tci.freqHz();
     d["tciBandName"] = bandNameFromHz(tci.freqHz());
     d["tciHost"] = cfg.tciHost;
@@ -145,17 +138,6 @@ static void buildState() {
     d["note"]    = noteCode;
     d["noteArg"] = noteArg;
     d["version"] = FW_VERSION;
-    // Diagnose: der freie Heap allein sagt wenig - entscheidend ist der
-    // groesste zusammenhaengende Block. Faellt der, waehrend der freie Heap
-    // steht, ist es Fragmentierung.
-    d["heap"]      = ESP.getFreeHeap();
-    d["heapMin"]   = ESP.getMinFreeHeap();
-    d["heapMax"]   = ESP.getMaxAllocHeap();
-    d["uptime"]    = (uint32_t)(millis() / 1000);
-    d["rssi"]      = WiFi.RSSI();
-    d["wifiDrops"] = wifiDropCount();
-    d["wifiRoams"] = wifiRoamCount();
-    d["rssiAvg"]   = wifiRssiAvg();
 
     stateLen = serializeJson(d, stateJson, sizeof(stateJson));
     if (stateLen >= sizeof(stateJson) - 1) log_e("Zustand passt nicht in den Puffer");
@@ -324,8 +306,13 @@ void webBegin() {
     });
 
     http.on("/", HTTP_GET, []() {
+        // Gepackt ausliefern: ein Drittel der Bytes, entsprechend frueher
+        // laeuft das Skript am Dokumentende - vorher sah man die Seite
+        // sekundenlang ohne Tasten und Anzeigen.
         http.sendHeader("Cache-Control", "no-store");
-        http.send_P(200, "text/html; charset=utf-8", INDEX_HTML);
+        http.sendHeader("Content-Encoding", "gzip");
+        http.send_P(200, "text/html; charset=utf-8",
+                    (PGM_P)INDEX_HTML_GZ, INDEX_HTML_GZ_LEN);
     });
     http.on("/api/state", HTTP_GET, []() {
         buildState();
@@ -342,7 +329,9 @@ void webBegin() {
     // geschlossen hat (Tab weg, WLAN weg, Reload mitten im Frame). Sind alle
     // Plaetze mit solchen Leichen belegt, kommt kein neuer Browser mehr durch
     // und das Dashboard wirkt wie eingefroren.
-    wsSrv.enableHeartbeat(15000, 3000, 2);
+    // Enger als der Default: tote Verbindungen sollen schnell verschwinden,
+    // nicht erst nach einer halben Minute im Weg stehen.
+    wsSrv.enableHeartbeat(6000, 2000, 2);
     wsSrv.onEvent([](uint8_t num, WStype_t type, uint8_t* payload, size_t len) {
         if (type == WStype_TEXT) {
             payload[len] = 0;

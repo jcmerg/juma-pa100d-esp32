@@ -335,13 +335,15 @@ void consoleLoop() {
         io->printf("\nJUMA PA-100D Controller %s - 'help' zeigt die Kommandos\n> ", FW_VERSION);
     }
 
-    while (Serial.available()) {
+    uint16_t budget = RX_MAX_PER_LOOP;
+    while (Serial.available() && budget--) {
         io = &Serial;
         feed((char)Serial.read());
     }
 
     if (tc && tc.connected()) {
-        while (tc.available()) {
+        budget = RX_MAX_PER_LOOP;
+        while (tc.available() && budget--) {
             io = &tc;
             feed((char)tc.read());
         }

@@ -3,7 +3,7 @@
 
 // Nur die Zahl hochzaehlen - so laesst sich nach einem OTA-Update pruefen,
 // was wirklich laeuft.
-#define FW_VERSION "1.11.2"
+#define FW_VERSION "1.14.1"
 
 // ---------------------------------------------------------------------------
 // Hardware
@@ -29,6 +29,14 @@ static const uint32_t POLL_INTERVAL_MS = 500;
 
 // Ab wann gilt die Statusanzeige als veraltet / PA als offline.
 static const uint32_t STALE_AFTER_MS   = 3000;
+
+// Hoechstens so viele Bytes je Schleifendurchlauf von der PA lesen. Ohne
+// Grenze kann eine rauschende Leitung - etwa wenn die PA abgeschaltet wird und
+// ihr RS-232-Treiber die Leitung undefiniert laesst - die Hauptschleife
+// dauerhaft blockieren: bei 115200 Baud kommen Bytes schneller nach, als eine
+// unbegrenzte Schleife sie los wird. Webserver und Watchdog kaemen nicht mehr
+// zum Zug. Eine Statusantwort ist 45 Bytes lang, das hier ist also reichlich.
+static const uint16_t RX_MAX_PER_LOOP = 256;
 
 // Mindestabstand zwischen zwei Kommandos an die PA.
 static const uint32_t CMD_GAP_MS       = 40;

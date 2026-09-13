@@ -809,11 +809,27 @@ function setLink(on){
   document.body.classList.toggle("off",!on);
   if(!on)$("off").textContent=t("wsLost");
 }
-function conn(){ws=new WebSocket("ws://"+location.hostname+":81/");
-ws.onopen=function(){setLink(true)};
-ws.onmessage=function(e){render(JSON.parse(e.data))};
-ws.onclose=function(){$("dPa").className="dot";setLink(false);setTimeout(conn,2000)};
-ws.onerror=function(){setLink(false)}}
+// Der Server kann aufhoeren zu senden, ohne die Verbindung zu schliessen -
+// dann kommt kein onclose, und die Seite haelt stumm den letzten Stand fest:
+// gruener Punkt, alte Frequenz, alles eingefroren. Von aussen sieht das aus
+// wie ein haengendes Interface. Deshalb ein eigener Wachhund: bleiben die
+// Aktualisierungen aus, gilt die Verbindung als tot.
+let lastMsg=0,wdT=null;
+const WD_MS=4000;                    // acht ausgebliebene Aktualisierungen
+function conn(){
+  try{ws=new WebSocket("ws://"+location.hostname+":81/")}catch(e){setTimeout(conn,2000);return}
+  ws.onopen=function(){lastMsg=Date.now();setLink(true)};
+  ws.onmessage=function(e){lastMsg=Date.now();setLink(true);render(JSON.parse(e.data))};
+  ws.onclose=function(){$("dPa").className="dot";setLink(false);setTimeout(conn,2000)};
+  ws.onerror=function(){setLink(false)};
+  if(!wdT)wdT=setInterval(function(){
+    if(!lastMsg||!ws)return;
+    if(Date.now()-lastMsg>WD_MS&&ws.readyState===1){
+      setLink(false);
+      try{ws.close()}catch(e){}     // onclose stoesst den Neuaufbau an
+    }
+  },1000);
+}
 conn();
 </script></body></html>
 )HTML";

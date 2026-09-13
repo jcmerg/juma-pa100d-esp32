@@ -2,3 +2,4 @@
 .vscode/
 .DS_Store
 platformio_local.ini
+src/index_html_gz.h

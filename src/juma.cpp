@@ -72,7 +72,8 @@ bool Juma::setGain(uint8_t n) {
 void Juma::loop() {
     pumpQueue();
 
-    while (Serial2.available()) {
+    uint16_t budget = RX_MAX_PER_LOOP;
+    while (Serial2.available() && budget--) {
         char c = (char)Serial2.read();
         rxBytes_++;
         tail_[tailPos_] = (uint8_t)c;
