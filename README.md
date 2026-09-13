@@ -94,11 +94,25 @@ since RS-232 mark is negative. If the tip shows that instead, the jumpers on the
 frequency sense board are in the "software update" position and tip and ring are
 swapped.
 
-#### Example: "mini RS232 ↔ TTL" board with MAX3232ESE+
+#### Example: the blue "RS232<->TTL" board
 
-The widespread matchbox-sized board (about €2) is electrically suitable — right
-chip, 3.0–5.5 V, charge-pump capacitors on board — but has **no connectors and
-no text labels**. Eight solder pads, four per side, marked with symbols only:
+The widespread board from the usual marketplaces (about €2, roughly 15 × 10 mm)
+is electrically suitable: charge-pump capacitors on board, and with the right
+chip 3.0–5.5 V. Identifying marks:
+
+| | |
+|---|---|
+| Chip (front) | `MAX3232ESE+` in SOIC-16 |
+| Silkscreen (back) | `RS232<->TTL` plus a batch number such as `110` |
+| Connections | 8 solder pads, 4 per edge — no connectors fitted |
+
+**Check the chip marking.** Visually identical boards ship with either chip: one
+variant carries a **MAX3232** (3.0–5.5 V), the other a **MAX232** — 5 V only,
+and its receiver output drives 5 V into a 3.3 V input. Sellers list them side by
+side as "3.3 V" and "5 V" versions, and the pictures often show the wrong one.
+The label on the chip decides, not the listing: it has to read **MAX3232**.
+
+The pads carry **no text**, only symbols:
 
 | Symbol | Meaning |
 |---|---|
@@ -107,8 +121,8 @@ no text labels**. Eight solder pads, four per side, marked with symbols only:
 | `→` / `←` | data direction through the board |
 
 VCC and GND are present on **both** sides, so power can come from whichever side
-is more convenient. Which physical side is RS-232 and which is TTL is written
-nowhere — with the measurement above you do not need to know:
+is more convenient. The silkscreen says what the board does, but not which edge
+is RS-232 and which is TTL — with the measurement above you do not need to know:
 
 1. The pad at about **−5.5 V** is the RS-232 driver output → **tip**.
 2. Note its **arrow direction**. The pad with the same arrow on the other side
