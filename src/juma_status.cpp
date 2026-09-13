@@ -2,14 +2,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Erstes Zeichen eines rechtsbuendigen Feldes (fuehrende Leerzeichen weg).
+// First character of a right-justified field (skip leading blanks).
 static char firstChar(const char* s) {
     while (*s == ' ' || *s == '\t') s++;
     return *s;
 }
 
 bool jumaParseStatus(char* line, JumaStatus& st) {
-    // 13 durch ':' getrennte Felder. Neuere Firmware darf mehr anhaengen.
+    // 13 fields separated by ':'. Newer firmware may append more.
     char* f[16];
     uint8_t n = 0;
     char* p = line;
@@ -35,9 +35,9 @@ bool jumaParseStatus(char* line, JumaStatus& st) {
     st.watts   = (float)atof(f[9]);
     st.temp    = (int)strtol(f[10], nullptr, 10);
     st.fan     = (uint8_t)strtoul(f[11], nullptr, 10);
-    st.alarms  = (uint16_t)strtoul(f[12], nullptr, 16);   // HEX, siehe Header
+    st.alarms  = (uint16_t)strtoul(f[12], nullptr, 16);   // HEX, see header
 
-    // raw fuer die Diagnoseanzeige wieder zusammensetzen
+    // reassemble raw for the diagnostic display
     size_t o = 0;
     for (uint8_t i = 0; i < n && o < sizeof(st.raw) - 2; i++) {
         if (i) st.raw[o++] = ':';

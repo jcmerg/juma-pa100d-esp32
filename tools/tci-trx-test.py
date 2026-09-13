@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Prueft, ob die SDR-Software ein 'trx:0,false' von einem TCI-Client annimmt.
+"""Check whether the SDR software accepts 'trx:0,false' from a TCI client.
 
-Wartet auf TX, schickt nach kurzer Verzoegerung das Kommando und meldet, ob der
-Sender daraufhin abfaellt. Sendet NIE 'trx:0,true' - es wird nur abgeschaltet.
+Waits for TX, sends the command after a short delay and reports whether the
+transmitter drops. NEVER sends 'trx:0,true' - it only switches off.
 
     ./tools/tci-trx-test.py [host] [port] [wartezeit_s]
 """
@@ -44,7 +44,7 @@ def pull():
         out.append(acc[off:off+ln].decode("utf-8", "replace")); acc = acc[off+ln:]
     return [c.strip() for f in out for c in f.split(";") if c.strip()]
 
-print("Verbunden mit %s:%d. Warte bis zu %.0f s auf TX - jetzt kurz tasten." % (host, port, wait), flush=True)
+print("Connected to %s:%d. Waiting up to %.0f s for TX - key up briefly now." % (host, port, wait), flush=True)
 
 t0 = time.time()
 state = "warte"
@@ -57,23 +57,23 @@ while time.time() - t0 < wait:
         if not low.startswith("trx:"):
             continue
         on = "true" in low
-        print("  %6.1fs  Server meldet: %s" % (time.time() - t0, c), flush=True)
+        print("  %6.1fs  server reports: %s" % (time.time() - t0, c), flush=True)
         if on and state == "warte":
             state = "tx"
             time.sleep(1.0)
             send("trx:0,false;")
             sent_at = time.time()
-            print("  %6.1fs  -> trx:0,false; gesendet" % (sent_at - t0), flush=True)
+            print("  %6.1fs  -> trx:0,false; sent" % (sent_at - t0), flush=True)
         elif not on and state == "tx":
             dt = time.time() - sent_at
-            print("\nERGEBNIS: Sender fiel %.2f s nach dem Kommando ab." % dt, flush=True)
-            print("deskHPSDR nimmt trx:0,false von einem TCI-Client AN." if dt < 2.0 else
-                  "Abfall kam spaet - vermutlich hast du selbst losgelassen.", flush=True)
+            print("\nRESULT: transmitter dropped %.2f s after the command." % dt, flush=True)
+            print("The SDR accepts trx:0,false from a TCI client." if dt < 2.0 else
+                  "The drop came late - you probably released the key yourself.", flush=True)
             s.close(); sys.exit(0)
     if state == "tx" and sent_at and time.time() - sent_at > 4:
-        print("\nERGEBNIS: 4 s nach dem Kommando sendet der Funk WEITER.", flush=True)
-        print("Die SDR-Software ignoriert trx:0,false von einem TCI-Client.", flush=True)
+        print("\nRESULT: 4 s after the command the radio is STILL transmitting.", flush=True)
+        print("The SDR software refuses trx:0,false from a TCI client.", flush=True)
         s.close(); sys.exit(1)
 
-print("\nKein TX gesehen - Test nicht durchgefuehrt.", flush=True)
+print("\nNo TX seen - test not performed.", flush=True)
 s.close(); sys.exit(2)

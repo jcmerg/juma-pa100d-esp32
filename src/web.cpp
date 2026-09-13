@@ -14,9 +14,9 @@
 
 Settings cfg;
 
-// mDNS und DHCP vertragen nur Kleinbuchstaben, Ziffern und Bindestriche.
-// Alles andere wird verworfen statt abgelehnt - ein leerer Name faellt auf
-// die Vorgabe zurueck, damit das Geraet nie namenlos im Netz haengt.
+// mDNS and DHCP only tolerate lower-case letters, digits and hyphens.
+// Anything else is dropped rather than rejected - an empty name falls back to
+// the default so the device is never nameless on the network.
 String sanitizeHostname(const String& in) {
     String out;
     for (size_t i = 0; i < in.length() && out.length() < 32; i++) {
@@ -34,17 +34,17 @@ static Preferences      prefs;
 static String           noteCode, noteArg;
 static uint32_t         lastPush = 0;
 
-// Fester Puffer statt String: der Zustand geht zweimal pro Sekunde raus, und
-// ein wachsender String realloziert dabei jedes Mal. Ueber Stunden fragmentiert
-// das den Heap - der freie Speicher bleibt hoch, der groesste zusammenhaengende
-// Block schrumpft, und irgendwann scheitert eine Allokation.
+// Fixed buffer instead of a String: the state goes out twice a second, and a
+// growing String reallocates every time. Over hours that fragments the heap -
+// free memory stays high, the largest contiguous block shrinks, and eventually
+// an allocation fails.
 static char             stateJson[1280];
 static size_t           stateLen = 0;
 
 
 void webSetNote(const char* code, const char* arg) {
-    // bandControl() ruft das in jedem Durchlauf - ohne den Vergleich waere das
-    // unnoetige String-Zuweisung auf dem Heap.
+    // bandControl() calls this on every pass - without the comparison that
+    // would be needless String assignment on the heap.
     if (noteCode == code && noteArg == arg) return;
     noteCode = code;
     noteArg  = arg;
@@ -53,12 +53,12 @@ void webSetNote(const char* code, const char* arg) {
 // --- Settings -------------------------------------------------------------
 
 void settingsLoad() {
-    // beschreibbar oeffnen, damit der Namespace beim ersten Start angelegt
-    // wird - readOnly loggt sonst ein irritierendes "nvs_open failed"
+    // Open writable so the namespace is created on first start - read-only
+    // otherwise logs a confusing "nvs_open failed"
     prefs.begin("juma", false);
-    // isKey() vorweg, sonst loggt getString() beim ersten Start je Schluessel
-    // ein [E] nvs_get_str ... NOT_FOUND - das sieht nach Defekt aus, ist aber
-    // nur der noch leere Namespace.
+    // isKey() first, otherwise getString() logs an [E] nvs_get_str ...
+    // NOT_FOUND per key on first start - that looks like a fault but is merely
+    // the still-empty namespace.
     cfg.hostname = prefs.isKey("host") ? prefs.getString("host") : String(HOSTNAME_DEFAULT);
     if (prefs.isKey("ssid"))     cfg.ssid     = prefs.getString("ssid");
     if (prefs.isKey("pass"))     cfg.pass     = prefs.getString("pass");
@@ -97,7 +97,7 @@ void settingsSave() {
     prefs.end();
 }
 
-// --- Zustand als JSON ----------------------------------------------------
+// --- State as JSON --------------------------------------------------------
 
 static void buildState() {
     const JumaStatus& s = juma.status();
@@ -140,10 +140,10 @@ static void buildState() {
     d["version"] = FW_VERSION;
 
     stateLen = serializeJson(d, stateJson, sizeof(stateJson));
-    if (stateLen >= sizeof(stateJson) - 1) log_e("Zustand passt nicht in den Puffer");
+    if (stateLen >= sizeof(stateJson) - 1) log_e("state does not fit in the buffer");
 }
 
-// --- Kommandos vom Browser ("name:wert") ---------------------------------
+// --- Commands from the browser ("name:value") -----------------------------
 
 static void handleCmd(const char* text) {
     const char* colon = strchr(text, ':');
@@ -157,28 +157,26 @@ static void handleCmd(const char* text) {
     else if (name == "clear")  juma.clearAlarm();
     else if (name == "poweroff") juma.powerOff(false);
     else if (name == "bandsel") {
-        // Nur sinnvoll, solange der ESP32 das Band nicht selbst bestimmt -
-        // sonst haette das naechste '=Bn' die Umschaltung sofort wieder
-        // aufgehoben. Die UI sperrt das auch, hier steht es gegen veraltete
-        // Browserzustaende.
+        // Only meaningful while the ESP32 is not choosing the band itself -
+        // otherwise the next '=Bn' would undo the change immediately. The UI
+        // locks this too; here it guards against stale browser state.
         if (cfg.autoband) {
-            log_w("Bandwahl-Umschaltung abgelehnt: TCI-Bandwahl ist aktiv");
+            log_w("band select change rejected: TCI band selection is active");
             return;
         }
-        // Fuer "Automatik" gibt es '=A'. Fuer "Manuell" gibt es kein eigenes
-        // Kommando - '=Bn' IST die manuelle Bandwahl. Also das Band schicken,
-        // auf dem die PA ohnehin steht: kein Bandwechsel, aber A wird zu M.
+        // For "automatic" there is '=A'. For "manual" there is no command of
+        // its own - '=Bn' IS the manual band selection. So send the band the
+        // PA is already on: no band change, but A becomes M.
         if (v) {
             juma.setAutoSelect();
         } else {
             uint8_t b = juma.status().band;
             if (b >= 1 && b <= 9) juma.setBand(b);
-            else log_w("Bandwahl manuell: PA meldet Band %u, kein =Bn moeglich", b);
+            else log_w("manual band select: PA reports band %u, no =Bn possible", b);
         }
     }
-    // Diese drei brauchen keinen Neustart und wirken deshalb sofort - ein
-    // Schalter, der erst durch "Speichern & neu starten" wirksam wird, sieht
-    // aus als taete er nichts.
+    // These need no reboot and therefore take effect at once - a switch that
+    // only becomes effective via "save & restart" looks like it does nothing.
     else if (name == "tempwarn" || name == "temphigh") {
         if (v >= 20 && v <= 120) {
             if (name == "tempwarn") cfg.tempWarn = (uint8_t)v;
@@ -188,7 +186,7 @@ static void handleCmd(const char* text) {
         }
     }
     else if (name == "tempalarm") { cfg.tempAlarm  = (v != 0); settingsSave(); }
-    // SWR kommt als Zehntel herein, damit der Befehl ganzzahlig bleibt
+    // SWR arrives in tenths so the command stays integral
     else if (name == "swrwarn" || name == "swrhigh") {
         if (v >= 10 && v <= 100) {
             if (name == "swrwarn") cfg.swrWarnX10 = (uint8_t)v;
@@ -202,7 +200,7 @@ static void handleCmd(const char* text) {
     else if (name == "autoband") {
         cfg.autoband = (v != 0);
         settingsSave();
-        // den Hinweis setzt bandControl() im naechsten Durchlauf selbst
+        // bandControl() sets the hint itself on the next pass
     }
 }
 
@@ -228,19 +226,19 @@ static void onConfig() {
     }
     if (cfg.tempHigh < cfg.tempWarn) cfg.tempHigh = cfg.tempWarn;
     settingsSave();
-    // sprachneutral - den Text macht das Dashboard, sonst steht im englischen
-    // UI ploetzlich Deutsch
+    // language neutral - the dashboard supplies the wording, otherwise German
+    // would suddenly appear in the English UI
     http.send(200, "text/plain", "saved");
     delay(1000);
     ESP.restart();
 }
 
 // ---------------------------------------------------------------------------
-// OTA per HTTP-Push.
+// OTA by HTTP push.
 //
-// ArduinoOTA/espota laesst das GERAET zum Host zurueckverbinden - das scheitert,
-// sobald der ESP32 in einem IoT-VLAN haengt, das nicht ins LAN initiieren darf.
-// Dieser Endpunkt laeuft in der Richtung, die ohnehin funktioniert:
+// ArduinoOTA/espota has the DEVICE connect back to the host - that fails as
+// soon as the ESP32 sits in an IoT VLAN which may not initiate into the LAN.
+// This endpoint runs in the direction that works anyway:
 //   curl -u admin:<pass> -F firmware=@firmware.bin http://<ip>/update
 // ---------------------------------------------------------------------------
 static bool otaAuthOk = false;
@@ -250,7 +248,7 @@ static void onUpdateEnd() {
     bool ok = otaAuthOk && !Update.hasError();
     http.sendHeader("Connection", "close");
     http.send(ok ? 200 : 500, "text/plain; charset=utf-8",
-              ok ? "OK - Neustart\n" : "FEHLGESCHLAGEN\n");
+              ok ? "OK - restarting\n" : "FAILED\n");
     if (ok) { delay(300); ESP.restart(); }
 }
 
@@ -259,32 +257,32 @@ static void onUpdateChunk() {
 
     if (up.status == UPLOAD_FILE_START) {
         otaAuthOk = http.authenticate("admin", OTA_PASS);
-        if (!otaAuthOk) { log_w("OTA: Authentifizierung fehlgeschlagen"); return; }
-        // Die PA definiert stillsetzen - waehrend des Schreibens laeuft loop()
-        // nicht mehr. Abschaltbar, weil es sonst bei jedem Entwicklungs-Flash
-        // ungefragt die Betriebsart wegnimmt.
+        if (!otaAuthOk) { log_w("OTA: authentication failed"); return; }
+        // Put the PA into a defined idle state - loop() no longer runs while
+        // writing. Switchable, because otherwise every development flash takes
+        // away the operating mode unasked.
         if (cfg.otaStandby) juma.sendNow("=S");
-        log_i("OTA: '%s' startet", up.filename.c_str());
+        log_i("OTA: '%s' starting", up.filename.c_str());
         if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
-            log_e("OTA: begin fehlgeschlagen");
+            log_e("OTA: begin failed");
             otaAuthOk = false;
         }
         return;
     }
     if (!otaAuthOk) return;
 
-    // Der komplette Upload laeuft in einem handleClient() - ohne das hier
-    // wuerde der Watchdog mitten im Schreiben zuschlagen.
+    // The whole upload runs inside a single handleClient() - without this the
+    // watchdog would fire in the middle of writing.
     esp_task_wdt_reset();
 
     if (up.status == UPLOAD_FILE_WRITE) {
         if (Update.write(up.buf, up.currentSize) != up.currentSize) {
-            log_e("OTA: Schreibfehler bei %u Bytes", (unsigned)up.totalSize);
+            log_e("OTA: write error at %u bytes", (unsigned)up.totalSize);
             otaAuthOk = false;
         }
     } else if (up.status == UPLOAD_FILE_END) {
-        if (Update.end(true)) log_i("OTA: %u Bytes geschrieben", (unsigned)up.totalSize);
-        else                  log_e("OTA: end fehlgeschlagen (%s)", Update.errorString());
+        if (Update.end(true)) log_i("OTA: %u bytes written", (unsigned)up.totalSize);
+        else                  log_e("OTA: end failed (%s)", Update.errorString());
     } else if (up.status == UPLOAD_FILE_ABORTED) {
         Update.abort();
         otaAuthOk = false;
@@ -292,23 +290,23 @@ static void onUpdateChunk() {
 }
 
 void webBegin() {
-    // authenticate() liest den Authorization-Header nur, wenn er gesammelt wird.
-    // Core 2.0.x nimmt Array + Anzahl, nicht variadisch.
+    // authenticate() only reads the Authorization header when it is
+    // collected. Core 2.0.x takes an array plus count, not variadic args.
     static const char* otaHeaders[] = { "Authorization" };
     http.collectHeaders(otaHeaders, 1);
     http.on("/update", HTTP_POST, onUpdateEnd, onUpdateChunk);
-    // Die Pruefung im Upload-Handler greift erst, wenn der Koerper durch ist -
-    // der Browser wuerde also erst ein Megabyte hochladen, dann 401 bekommen,
-    // nachfragen und nochmal hochladen. Dieser GET laesst ihn vorher fragen.
+    // The check in the upload handler only takes effect once the body is
+    // through - the browser would upload a megabyte, get a 401, prompt, and
+    // upload again. This GET makes it ask beforehand.
     http.on("/update", HTTP_GET, []() {
         if (!http.authenticate("admin", OTA_PASS)) { http.requestAuthentication(); return; }
         http.send(204, "text/plain", "");
     });
 
     http.on("/", HTTP_GET, []() {
-        // Gepackt ausliefern: ein Drittel der Bytes, entsprechend frueher
-        // laeuft das Skript am Dokumentende - vorher sah man die Seite
-        // sekundenlang ohne Tasten und Anzeigen.
+        // Serve compressed: a third of the bytes, so the script at the end of
+        // the document runs correspondingly sooner - before, the page sat
+        // there for seconds without buttons or gauges.
         http.sendHeader("Cache-Control", "no-store");
         http.sendHeader("Content-Encoding", "gzip");
         http.send_P(200, "text/html; charset=utf-8",
@@ -319,18 +317,17 @@ void webBegin() {
         http.send(200, "application/json", stateJson);
     });
     http.on("/api/config", HTTP_POST, onConfig);
-    // sonst loggt der Core bei jedem Seitenaufruf ein [E] "handler not found"
+    // otherwise the core logs an [E] "handler not found" on every page load
     http.on("/favicon.ico", HTTP_GET, []() { http.send(204, "image/x-icon", ""); });
     http.onNotFound([]() { http.send(404, "text/plain", "not found"); });
     http.begin();
 
     wsSrv.begin();
-    // Ohne das bleiben Verbindungen stehen, die der Browser nicht sauber
-    // geschlossen hat (Tab weg, WLAN weg, Reload mitten im Frame). Sind alle
-    // Plaetze mit solchen Leichen belegt, kommt kein neuer Browser mehr durch
-    // und das Dashboard wirkt wie eingefroren.
-    // Enger als der Default: tote Verbindungen sollen schnell verschwinden,
-    // nicht erst nach einer halben Minute im Weg stehen.
+    // Without this, connections the browser did not close cleanly linger
+    // (tab gone, Wi-Fi gone, reload mid-frame). Once all slots are taken by
+    // such corpses no new browser gets through and the dashboard appears
+    // frozen. Tighter than the default so dead connections disappear quickly
+    // instead of blocking a slot for half a minute.
     wsSrv.enableHeartbeat(6000, 2000, 2);
     wsSrv.onEvent([](uint8_t num, WStype_t type, uint8_t* payload, size_t len) {
         if (type == WStype_TEXT) {

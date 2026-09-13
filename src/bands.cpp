@@ -1,16 +1,16 @@
 #include "bands.h"
 #include <stddef.h>
 
-// Bandgrenzen leicht ueber die IARU-R1-Kanten hinaus aufgeweitet, damit eine
-// QRG direkt am Bandrand nicht durchfaellt. Reihenfolge = Suchreihenfolge.
+// Band edges widened slightly beyond the IARU R1 limits so a frequency right
+// at a band edge is not missed. Order = search order.
 struct BandRange {
     uint32_t lo, hi;
-    uint8_t  juma;      // 0 = von der PA-100D nicht abgedeckt
+    uint8_t  juma;      // 0 = not covered by the PA-100D
     const char* name;
 };
 
 static const BandRange RANGES[] = {
-    // --- von der PA-100D abgedeckt ---
+    // --- covered by the PA-100D ---
     { 1790000,   2010000,   1, "160m" },
     { 3490000,   4010000,   2, "80m"  },
     { 6990000,   7310000,   3, "40m"  },
@@ -20,7 +20,7 @@ static const BandRange RANGES[] = {
     {20990000,  21460000,   7, "15m"  },
     {24880000,  25000000,   8, "12m"  },
     {27990000,  29710000,   9, "10m"  },
-    // --- erkannt, aber NICHT abgedeckt: hier darf kein =Bn raus ---
+    // --- recognised but NOT covered: no =Bn may go out for these ---
     {  135700,      137800,   0, "2200m"},
     {  472000,      479000,   0, "630m" },
     { 5250000,   5450000,   0, "60m"  },

@@ -1,745 +1,745 @@
-# JUMA PA-100D Controller auf ESP32
+# JUMA PA-100D controller on an ESP32
 
-Steuert die Endstufe **JUMA PA-100D** über ihren RS-232-Port. Web-Dashboard per
-WLAN, automatische Bandwahl über **TCI** (ExpertSDR, deskHPSDR, Thetis),
-OTA-Updates und eine Diagnosekonsole über Telnet — alles auf einem ESP32 für
-ein paar Euro.
+Controls the **JUMA PA-100D** amplifier through its RS-232 port. Web dashboard
+over Wi-Fi, automatic band selection via **TCI** (ExpertSDR, deskHPSDR, Thetis),
+OTA updates and a diagnostic console over telnet — all on an ESP32 costing a few
+euros.
 
 ![Dashboard](docs/dashboard-de.png)
 
 ```
-SDR-Software ──TCI (WebSocket)──► ESP32 ──UART2──► MAX3232 ──RS-232──► JUMA PA-100D
+SDR software ──TCI (WebSocket)──► ESP32 ──UART2──► MAX3232 ──RS-232──► JUMA PA-100D
                                     │
-                 Browser ◄──HTTP :80 + WebSocket :81
+                 browser ◄──HTTP :80 + WebSocket :81
 ```
 
-- alle 13 Statusfelder der PA live im Browser, Pegelbalken und Rundanzeigen
-- Bandwahl folgt der QRG der SDR-Software, mit Beruhigungszeit und TX-Sperre
-- Bedienung von OPERATE/STANDBY, Band, Abschwächer und Alarmquittierung
-- Alarm mit Ton, Banner und blinkendem Tab-Titel — die PA piepst nur vor Ort
-- Oberfläche auf Deutsch und Englisch, hell und dunkel
-- Firmware-Update über WLAN, ohne USB-Kabel am Verstärker
-- Telnet-Konsole für Konfiguration und Fehlersuche
+- all 13 status fields of the PA live in the browser, bar and dial gauges
+- band selection follows the SDR's frequency, with settle time and a TX lock
+- control of OPERATE/STANDBY, band, attenuator and alarm acknowledgement
+- alarms with tone, banner and a blinking tab title — the PA only beeps locally
+- interface in English and German, light and dark
+- firmware updates over Wi-Fi, no USB cable at the amplifier
+- telnet console for configuration and troubleshooting
 
-Die Screenshots zeigen echten Betrieb — 59,8 W auf 20 m, SWR 1,2, 12,3 A, und
-die Versorgung bricht unter Last von 13,68 V auf 12,98 V ein. Ersetzt sind nur
-SSID und TCI-Host.
+The screenshots show real operation — 59.8 W on 20 m, SWR 1.2, 12.3 A, and the
+supply sagging from 13.68 V to 12.98 V under load. Only the SSID and the TCI
+host have been replaced.
 
 <table>
 <tr>
-<td width="50%"><a href="docs/dashboard-light.png"><img src="docs/dashboard-light.png" alt="Helles Theme"></a></td>
+<td width="50%"><a href="docs/dashboard-light.png"><img src="docs/dashboard-light.png" alt="Light theme"></a></td>
 <td width="50%"><a href="docs/alarm.png"><img src="docs/alarm.png" alt="Alarm"></a></td>
 </tr>
 <tr>
-<td>Helles Theme — System, Hell oder Dunkel</td>
-<td>Alarm: Banner, Ton und blinkender Tab-Titel</td>
+<td>Light theme — system, light or dark</td>
+<td>Alarm: banner, tone and blinking tab title</td>
 </tr>
 <tr>
-<td><a href="docs/settings-de.png"><img src="docs/settings-de.png" alt="Konfiguration"></a></td>
+<td><a href="docs/settings-de.png"><img src="docs/settings-de.png" alt="Settings"></a></td>
 <td><a href="docs/dashboard-en.png"><img src="docs/dashboard-en.png" alt="English UI"></a></td>
 </tr>
 <tr>
-<td>Konfiguration hinter dem Zahnrad</td>
-<td>Dieselbe Oberfläche auf Englisch</td>
+<td>Settings behind the gear icon</td>
+<td>The same interface in English</td>
 </tr>
 </table>
 
-> **Ohne Gewähr.** Diese Firmware schaltet die Bandfilter einer Endstufe. Ein
-> falsches Filter kann die Ausgangsstufe zerstören. Vor dem ersten scharfen
-> Betrieb die Verkabelung mit dem eingebauten RS-232-Loopback-Test der PA prüfen
-> und die Bandumschaltung in STANDBY durchspielen.
+> **No warranty.** This firmware switches the band filters of an amplifier. The
+> wrong filter can destroy the output stage. Before the first serious use, check
+> the wiring with the PA's built-in RS-232 loopback test and rehearse the band
+> switching in STANDBY.
 
 ---
 
 ## Hardware
 
-Gebraucht werden ein ESP32 (getestet auf ESP32-WROOM, 4 MB Flash) und ein
-**MAX3232**-Pegelwandler. Die PA hat echte RS-232-Pegel — das Manual sagt dazu
-ausdrücklich „designed to provide and accept the standard levels" —, ein
-direkter Anschluss an den ESP32 zerstört dessen Eingang.
+You need an ESP32 (tested on ESP32-WROOM, 4 MB flash) and a **MAX3232** level
+shifter. The PA has true RS-232 levels — the manual states explicitly that it is
+"designed to provide and accept the standard levels" — so connecting it directly
+to the ESP32 destroys its input.
 
-**MAX232 ist der falsche Typ**: er läuft nur an 5 V, und sein Empfängerausgang
-schwingt auf 5 V gegen einen 3,3-V-Eingang.
+**MAX232 is the wrong part**: it runs on 5 V only, and its receiver output
+swings to 5 V against a 3.3 V input.
 
-### Verdrahtung
+### Wiring
 
-Die RS-232-Buchse der PA-100D ist eine **3,5-mm-Stereoklinke**, keine DB9.
+The RS-232 socket of the PA-100D is a **3.5 mm stereo jack**, not a DB9.
 
-| ESP32 | MAX3232-Modul | JUMA (3,5-mm-Klinke) |
+| ESP32 | MAX3232 module | JUMA (3.5 mm jack) |
 |---|---|---|
-| GPIO17 (`TX2`, U2TXD) | TTL **TXD** | RS-232-Treiberausgang → **Tip** |
-| GPIO16 (`RX2`, U2RXD) | TTL **RXD** | RS-232-Empfängereingang → **Ring** |
+| GPIO17 (`TX2`, U2TXD) | TTL **TXD** | RS-232 driver output → **tip** |
+| GPIO16 (`RX2`, U2RXD) | TTL **RXD** | RS-232 receiver input → **ring** |
 | 3V3 | VCC | — |
-| GND | GND | **Sleeve** |
+| GND | GND | **sleeve** |
 
-Das Modul **an 3,3 V** betreiben, nicht an 5 V.
+Run the module **on 3.3 V**, not on 5 V.
 
-GPIO16/17 sind die Standardpins von UART2 und auf WROOM-Modulen frei. Auf
-**WROVER** belegt das PSRAM diese Pins — dort z. B. 25/26 nehmen und
-`include/config.h` anpassen. UART0 bleibt die USB-Konsole.
+GPIO16/17 are the default pins of UART2 and free on WROOM modules. On **WROVER**
+the PSRAM occupies them — use e.g. 25/26 there and adjust `include/config.h`.
+UART0 stays the USB console.
 
-### Welches Pad ist welches?
+### Which pad is which?
 
-Die Beschriftung der Billigmodule ist uneinheitlich — manche labeln die TTL-,
-manche die RS-232-Seite, und die ganz kleinen Platinen verzichten auf Text
-komplett. **Eine einzige Messung löst das variantenunabhängig auf:**
+The labelling of cheap modules is inconsistent — some label the TTL side, some
+the RS-232 side, and the smallest boards carry no text at all. **A single
+measurement resolves this regardless of variant:**
 
-1. Nur **3,3 V und GND** anlegen, sonst nichts — keine Verbindung zur PA.
-2. Alle Datenpins gegen GND messen. Genau einer steht bei ca. **−5,5 V**: das
-   ist der **RS-232-Treiberausgang** → an **Tip** der Klinke.
-3. Der andere RS-232-Pin ist der Empfängereingang → an **Ring**.
+1. Apply **3.3 V and GND only**, nothing else — no connection to the PA.
+2. Measure all data pins against GND. Exactly one sits at about **−5.5 V**: that
+   is the **RS-232 driver output** → to the **tip** of the jack.
+3. The other RS-232 pin is the receiver input → to the **ring**.
 
-Gegenprobe an der PA: **Ring gegen Sleeve** muss im Ruhezustand ca. **−5 V**
-zeigen, RS-232-Mark ist negativ. Zeigt stattdessen Tip das, stehen die Jumper
-auf dem Frequency-Sense-Board in der „software update"-Stellung und Tip/Ring
-sind vertauscht.
+Cross-check at the PA: **ring against sleeve** must read about **−5 V** at idle,
+since RS-232 mark is negative. If the tip shows that instead, the jumpers on the
+frequency sense board are in the "software update" position and tip and ring are
+swapped.
 
-#### Beispiel: „mini RS232 ↔ TTL"-Platine mit MAX3232ESE+
+#### Example: "mini RS232 ↔ TTL" board with MAX3232ESE+
 
-Die verbreitete Streichholzschachtel-Platine (ca. 2 €) ist elektrisch passend —
-richtiger Chip, 3,0–5,5 V, Ladungspumpen-Kondensatoren an Bord —, hat aber
-**keine Steckverbinder und keine Textbeschriftung**. Acht Lötpads, vier je
-Seite, nur mit Symbolen versehen:
+The widespread matchbox-sized board (about €2) is electrically suitable — right
+chip, 3.0–5.5 V, charge-pump capacitors on board — but has **no connectors and
+no text labels**. Eight solder pads, four per side, marked with symbols only:
 
-| Symbol | Bedeutung |
+| Symbol | Meaning |
 |---|---|
 | `\|` | GND |
 | `+` | VCC |
-| `→` / `←` | Datenrichtung durch die Platine |
+| `→` / `←` | data direction through the board |
 
-VCC und GND liegen auf **beiden** Seiten, die Versorgung kann also von der
-bequemeren Seite kommen. Welche physische Seite RS-232 ist und welche TTL,
-steht nirgends — mit der Messung oben braucht man es auch nicht zu wissen:
+VCC and GND are present on **both** sides, so power can come from whichever side
+is more convenient. Which physical side is RS-232 and which is TTL is written
+nowhere — with the measurement above you do not need to know:
 
-1. Das Pad mit ca. **−5,5 V** ist der RS-232-Treiberausgang → **Tip**.
-2. Dessen **Pfeilrichtung** merken. Das Pad mit demselben Pfeil auf der anderen
-   Seite ist der zugehörige TTL-Eingang → **GPIO17**.
-3. Das andere Pfeilpaar ist der Gegenweg: RS-232-Eingang → **Ring**,
-   TTL-Ausgang → **GPIO16**.
+1. The pad at about **−5.5 V** is the RS-232 driver output → **tip**.
+2. Note its **arrow direction**. The pad with the same arrow on the other side
+   is the matching TTL input → **GPIO17**.
+3. The other arrow pair is the return path: RS-232 input → **ring**,
+   TTL output → **GPIO16**.
 
-### HF-Umgebung
+### RF environment
 
-Das Gerät sitzt neben einem 100-W-Linear:
+The device sits next to a 100 W linear:
 
-- Kabel kurz und geschirmt, Ferritkern über die Klinkenleitung
-- je 100 nF von TX/RX nach GND direkt am MAX3232
-- ESP32 in ein Metallgehäuse
-- die Versorgung **nicht** ungefiltert von den 13,8 V der PA abzweigen
-- gegen Masseschleifen: ein isolierter Transceiver (z. B. ADM3251E) statt des
+- keep cables short and shielded, put a ferrite on the jack lead
+- 100 nF from TX and RX to GND right at the MAX3232
+- ESP32 in a metal enclosure
+- do **not** tap the supply unfiltered from the PA's 13.8 V
+- against ground loops: an isolated transceiver (e.g. ADM3251E) instead of the
   MAX3232
 
-### Einstellungen an der PA
+### Settings on the PA
 
-Drei Punkte müssen stimmen, sonst antwortet die PA überhaupt nicht:
+Three things have to be right or the PA will not answer at all:
 
 | | |
 |---|---|
-| Serial Speed | **115200** (Werkseinstellung ist 9600) |
+| Serial Speed | **115200** (factory setting is 9600) |
 | Serial Port Mode | **Remote** |
-| Auto Band Detect | **F-Sense** oder **FT-817** |
+| Auto Band Detect | **F-Sense** or **FT-817** |
 
-Der letzte Punkt ist keine Schikane: laut Manual sind Remote- und Test-Modus
-nur bei diesen beiden Einstellungen überhaupt aktiv.
+The last point is not arbitrary: per the manual, remote and test mode are only
+active with those two settings.
 
-### Bench-Test ohne PC
+### Bench test without a PC
 
-Die PA hat einen eingebauten Loopback-Test: **DISPLAY/CONFIG aus dem
-Off-Zustand halten und einschalten**. Damit lässt sich die Verkabelung prüfen,
-bevor das erste Bandkommando fliegt. Beenden mit kurzem PWR-Druck.
+The PA has a built-in loopback test: **hold DISPLAY/CONFIG from the off state
+and switch on**. That lets you check the wiring before the first band command
+goes out. Exit with a short press of PWR.
 
 ---
 
-## Inbetriebnahme
+## Commissioning
 
-### Passwörter setzen
+### Setting passwords
 
-Es gibt zwei, beide stehen als **Platzhalter** in `include/config.h` und müssen
-vor dem Einsatz ersetzt werden:
+There are two, both **placeholders** in `include/config.h`, and both must be
+replaced before use:
 
-| Konstante | Platzhalter | schützt |
+| Constant | Placeholder | Protects |
 |---|---|---|
-| `OTA_PASSWORD` | `changeme` | Firmware-Upload — Basic-Auth `admin` / Passwort auf `POST /update`, ebenso espota |
-| `AP_PASSWORD` | `changeme01` | den Notfall-AP `JUMA-PA`, wenn kein WLAN konfiguriert ist |
+| `OTA_PASSWORD` | `changeme` | firmware upload — basic auth `admin` / password on `POST /update`, and espota |
+| `AP_PASSWORD` | `changeme01` | the fallback AP `JUMA-PA` when no Wi-Fi is configured |
 
-Das erste ist das wichtigere: wer das Gerät im Netz erreicht, kann damit eine
-beliebige Firmware aufspielen.
+The first one matters more: anyone who can reach the device on the network can
+upload arbitrary firmware with it.
 
-Gesetzt werden sie in **`platformio_local.ini`** — die Datei steht in der
-`.gitignore` und landet damit nie im Repo:
+They are set in **`platformio_local.ini`** — that file is in `.gitignore` and so
+never ends up in the repository:
 
 ```ini
 ; platformio_local.ini
 [secrets]
 flags =
-    -DAP_PASSWORD='"deinAPpasswort"'      ; mindestens 8 Zeichen
-    -DOTA_PASSWORD='"deinOTApasswort"'
+    -DAP_PASSWORD='"your-ap-password"'      ; at least 8 characters
+    -DOTA_PASSWORD='"your-ota-password"'
 ```
 
-Die versionierte `platformio.ini` bindet sie über `extra_configs` ein und hält
-selbst nur einen leeren `[secrets]`-Abschnitt. **Fehlt die lokale Datei, baut
-das Projekt trotzdem** und fällt auf die Platzhalter aus `config.h` zurück — für
-den ersten Versuch am Schreibtisch reicht das, für den Betrieb nicht.
+The versioned `platformio.ini` pulls it in via `extra_configs` and holds only an
+empty `[secrets]` section itself. **Without the local file the project still
+builds** and falls back to the placeholders from `config.h` — enough for a first
+try at the bench, not enough for operation.
 
-Zwei Dinge, die dabei auffallen:
+Two things worth knowing:
 
-- **Henne und Ei.** Der Upload, der das neue Passwort installiert, braucht noch
-  das **alte**. Einmalig also `JUMA_OTA_PASS=changeme ./tools/flash-wifi.sh`,
-  danach nicht mehr.
-- `tools/flash-wifi.sh` liest das Passwort selbst aus `platformio_local.ini`,
-  wenn `JUMA_OTA_PASS` nicht gesetzt ist — dieselbe Quelle, aus der auch die
-  Firmware gebaut wurde, also kein zweiter Ort zum Pflegen.
+- **Chicken and egg.** The upload that installs the new password still needs the
+  **old** one. So once `JUMA_OTA_PASS=changeme ./tools/flash-wifi.sh`, never
+  again afterwards.
+- `tools/flash-wifi.sh` reads the password from `platformio_local.ini` itself
+  when `JUMA_OTA_PASS` is unset — the same source the firmware was built from,
+  so there is never a second place to maintain.
 
-### Bauen und flashen
+### Building and flashing
 
 ```sh
-pio run                                  # bauen
-pio run -t upload                        # erstes Mal per USB
-./tools/flash-wifi.sh juma-pa.local      # danach über WLAN
-./tests/run.sh                           # Hosttests, kein ESP32 nötig
+pio run                                  # build
+pio run -t upload                        # first time over USB
+./tools/flash-wifi.sh juma-pa.local      # over Wi-Fi afterwards
+./tests/run.sh                           # host tests, no ESP32 required
 ```
 
-### WLAN einrichten
+### Setting up Wi-Fi
 
-Drei gleichwertige Wege:
+Three equivalent routes:
 
-1. **Serialkonsole** (`pio device monitor`), direkt beim Flashen:
+1. **Serial console** (`pio device monitor`), right after flashing:
    ```
-   scan                  # Netze auflisten
-   ssid MeinNetz
-   pass geheim123
-   save                  # speichert in NVS und startet neu
+   scan                  # list networks
+   ssid MyNetwork
+   pass secret123
+   save                  # stores to NVS and restarts
    ```
-2. **Telnet**, sobald WLAN steht: `telnet juma-pa.local`, dieselben Kommandos.
-3. **AP-Fallback**: ohne gültige Konfiguration spannt der ESP32 den AP
-   **`JUMA-PA`** auf, Dashboard auf `http://192.168.4.1/`.
+2. **Telnet**, once Wi-Fi is up: `telnet juma-pa.local`, same commands.
+3. **AP fallback**: without a valid configuration the ESP32 raises the AP
+   **`JUMA-PA`**, dashboard at `http://192.168.4.1/`.
 
-Hidden SSIDs funktionieren — der ESP32 sucht sie per aktivem Scan.
+Hidden SSIDs work — the ESP32 finds them with an active scan.
 
-Der **Gerätename** ist einstellbar (Default `juma-pa`) und gilt für
-WLAN-Hostname, mDNS und OTA — das Dashboard liegt danach unter
-`http://<name>.local/`. Erlaubt sind Kleinbuchstaben, Ziffern und Bindestriche.
+The **device name** is configurable (default `juma-pa`) and applies to the Wi-Fi
+hostname, mDNS and OTA — the dashboard then lives at `http://<name>.local/`.
+Lower-case letters, digits and hyphens are allowed.
 
 ---
 
-## Bedienung
+## Operation
 
-Das Dashboard ist ab 900 px Breite zweispaltig und zeigt alle 13 Statusfelder
-gleichzeitig. Die Konfiguration liegt hinter dem Zahnrad, damit im Hauptbild nur
-steht, was im Betrieb gebraucht wird.
+The dashboard goes two-column from 900 px width and shows all 13 status fields
+at once. Configuration sits behind the gear icon so the main view holds only
+what is needed during operation.
 
-### Pegelanzeigen
+### Level displays
 
-| Anzeige | Bereich | warn ab | hoch ab | Darstellung |
+| Display | Range | Warn from | High from | Rendering |
 |---|---|---|---|---|
-| RF | 0–150 W | 100 | 120 | Segmentbalken, 36 Segmente |
-| VSWR | 1–3 | einstellbar, Vorgabe 2,0 | einstellbar, Vorgabe 2,5 | Segmentbalken |
-| PA Temp | 20–80 °C | 50 | 60 | Rundanzeige, 180° |
-| Lüfter | 4 Stufen | Mittel | Schnell | Rundanzeige mit Stufentext |
-| Spannung | 10–15,5 V | < 11,2 / > 14,0 | < 11,0 / > 14,8 | Rundanzeige mit Marke |
-| Strom | 0–24 A | 19,2 | 21,6 | Rundanzeige |
+| RF | 0–150 W | 100 | 120 | segmented bar, 36 segments |
+| VSWR | 1–3 | configurable, default 2.0 | configurable, default 2.5 | segmented bar |
+| PA temp | 20–80 °C | 50 | 60 | dial, 180° |
+| Fan | 4 steps | medium | fast | dial with step label |
+| Voltage | 10–15.5 V | < 11.2 / > 14.0 | < 11.0 / > 14.8 | dial with a marker |
+| Current | 0–24 A | 19.2 | 21.6 | dial |
 
-Die Spannungsanzeige arbeitet mit einer **Marke auf fester Zonenskala** statt
-mit einem Balken von unten. Bei einer Größe, die sich zwischen 12 und 14 V
-bewegt, während die Skala bei 10 beginnt, wäre ein Füllbalken in beide
-Richtungen irreführend: im Normalbetrieb überdeckt er die rote
-Unterspannungszone, und bei Überspannung färbt er den gesamten Bereich rot, als
-wäre alles kritisch. Das Manual beschreibt das Instrument der PA selbst als
-*suppressed-zero voltmeter* — genau diese Bauart.
+The voltage display uses a **marker on a fixed zone scale** rather than a bar
+filled from the bottom. For a quantity that moves between 12 and 14 V while the
+scale starts at 10, a filled bar misleads in both directions: in normal
+operation it covers the red under-voltage zone, and on over-voltage it colours
+the entire range red as if everything were critical. The manual describes the
+PA's own instrument as a *suppressed-zero voltmeter* — exactly this kind.
 
-RF, Strom und Lüfter behalten den Füllbalken: das sind Mengen, die tatsächlich
-von null weg wachsen.
+RF, current and fan keep the filled bar: those are quantities that really do
+grow from zero.
 
-Die Spannungsgrenzen sind die **Defaults der PA**: Unterspannung 11,00 V,
-Vorwarnung 11,20 V, Überspannung 14,80 V (ab 14,00 V einstellbar), Nennspannung
-13,80 V. Beim Strom nennt das Manual nur den **24-A-Hardware-Trip** des MAX4373
-— der ist auch beim geräteeigenen Zeigerinstrument der Vollausschlag. Die
-Warnzonen bei 80 % und 90 % davon sind abgeleitet. Stehen an der eigenen PA
-andere Schwellen, die Konstanten in `src/index_html.h` anpassen.
+The voltage limits are the **PA's defaults**: under-voltage 11.00 V, pre-limit
+11.20 V, over-voltage 14.80 V (adjustable from 14.00 V), nominal 13.80 V. For
+current the manual names only the **24 A hardware trip** of the MAX4373 — which
+is also full scale on the unit's own meter. The warning zones at 80 % and 90 %
+of it are derived. If your PA is set to different thresholds, adjust the
+constants in `src/index_html.h`.
 
-Die Temperaturanzeige folgt der Einheit der PA: meldet sie `F`, wechseln
-Beschriftung und Einheit auf Fahrenheit, die Zonen bleiben dieselben
-Temperaturen.
+The temperature display follows the PA's unit: if it reports `F`, labels and
+unit switch to Fahrenheit while the zones stay the same temperatures.
 
-**Die Temperaturzonen sind Werte des Dashboards, keine der PA.** Das Gerät
-selbst kennt zwei einstellbare Schwellen, und keine davon steht in der
-Statusmeldung:
+**The temperature zones belong to the dashboard, not to the PA.** The unit
+itself has two adjustable thresholds, and neither appears in the status message:
 
-| | Default | einstellbar |
+| | Default | Adjustable |
 |---|---|---|
 | Over-Temperature Limit | **70 °C** | 50–100 °C |
 | Fan Cut-In Temperature | 40 °C | 0–80 °C |
 
-Ab der Abschaltschwelle setzt die PA das Alarmbit und läuft der Lüfter auf
-Maximum. Wer sein Gerät auf einen anderen Wert eingestellt hat, passt `TWARN`
-und `THIGH` in `src/index_html.h` entsprechend an — sinnvoll ist eine Warnzone
-deutlich **unter** der Abschaltschwelle, weil das Alarmbit erst beim Auslösen
-kommt und dann keine Zeit mehr bleibt.
+At the cut-out threshold the PA raises the alarm bit and runs the fan at
+maximum. If your unit is set differently, adjust `TWARN` and `THIGH` in
+`src/index_html.h` accordingly — a warning zone well **below** the cut-out makes
+sense, because the alarm bit only arrives when it trips and by then there is no
+time left.
 
-Ein Lüfter auf Stufe 3 ist dabei selbst ein Frühwarnzeichen: er springt per
-Default schon bei 40 °C an und läuft nur unter Last ganz hoch.
+A fan at step 3 is an early warning in itself: by default it starts at 40 °C and
+only goes all the way up under load.
 
-Die Warnschwelle treibt beide Dinge: die orange Zone der Anzeige **und** die
-Vorwarnung mit Ton und Banner. Sie sollte deutlich unter der Abschaltgrenze des
-Geräts liegen.
+The warning threshold drives both things: the orange zone of the gauge **and**
+the pre-warning with tone and banner. It should sit well below the unit's
+cut-out limit.
 
-**Eingangsleistung gibt es nicht.** Die PA misst HF nur am Ausgang — Kanal 12
-rückwärts, Kanal 13 vorwärts, daraus Ausgangsleistung und SWR. Ein Messpunkt
-für die Ansteuerung existiert im Gerät nicht.
+**There is no input power.** The PA measures RF only at the output — channel 12
+reverse, channel 13 forward, giving output power and SWR. The unit has no
+measuring point for drive power at all.
 
-Farben: normal `#00b33c`, warn `#ff9900`, hoch `#e60000`, unbeleuchtet
-`#595959`. Die Segmente sind nach ihrer **eigenen** Position gefärbt — der
-Balken zeigt also durchgehend die Zonen, statt bei Überschreitung komplett
-umzuschlagen. Nur Zahl und Stufentext nehmen die Farbe der aktuellen Zone.
+Colours: normal `#00b33c`, warn `#ff9900`, high `#e60000`, unlit `#595959`. The
+segments are coloured by their **own** position — so the bar shows the zones
+throughout instead of flipping over entirely once a threshold is passed. Only
+the number and the step label take the colour of the current zone.
 
-### Sprache
+### Language
 
-Deutsch und Englisch, umschaltbar in den Einstellungen. Die Wahl liegt im
-`localStorage` des Browsers, jedes Gerät behält also seine eigene; beim ersten
-Aufruf entscheidet `navigator.language`.
+English and German, switchable in the settings. The choice lives in the
+browser's `localStorage`, so every device keeps its own; on first visit
+`navigator.language` decides.
 
-Damit das vollständig funktioniert, schickt die Firmware **keine fertigen
-Texte**: Hinweise gehen als Code plus Argument raus (`tcidis`,
-`unsupported`+Band, `bandok`+Band …), und `/api/config` antwortet mit `saved`
-statt einem deutschen Satz.
+For this to work completely the firmware sends **no finished text**: hints go out
+as a code plus argument (`tcidis`, `unsupported`+band, `bandok`+band …), and
+`/api/config` answers with `saved` rather than a sentence in one language.
 
-Im Wörterbuch dürfen **keine HTML-Entities** stehen — die Texte werden per
-`textContent` gesetzt, `&amp;` erschiene wörtlich.
+The dictionary must contain **no HTML entities** — the text is set via
+`textContent`, so `&amp;` would appear literally.
 
-### Alarmmeldung
+### Alarm signalling
 
-Die PA piepst bei einem Alarm — aber nur vor Ort. Das Dashboard macht daraus:
+The PA beeps on an alarm — but only locally. The dashboard turns that into:
 
-- ein rotes Banner am oberen Rand mit den betroffenen Alarmen
-- einen Alarmton, alle 5 s wiederholt, bis quittiert oder Alarm weg
-- einen blinkenden Tab-Titel, damit es auch im Hintergrund auffällt
+- a red banner at the top naming the alarms concerned
+- an alarm tone, repeated every 5 s until acknowledged or the alarm clears
+- a blinking tab title so it is noticeable in the background too
 
-**Zusätzlich warnt das Dashboard vor der Abschaltung.** Das Alarmbit der PA
-kommt erst, wenn sie sich wegen Übertemperatur abschaltet — und dann bleibt
-keine Zeit mehr zu reagieren; mit der Abschaltung stirbt auch die serielle
-Verbindung, die Meldung käme also nie an. Überschreitet die Temperatur die
-eingestellte Warnschwelle, schlagen deshalb dasselbe Banner und derselbe Ton an,
-auch wenn die PA noch keinen Alarm meldet. Schwelle und Rotzone sind in den
-Einstellungen konfigurierbar (`tempwarn`, `temphigh`, `tempalarm`), Vorgabe
-50 ° und 60 °.
+**The dashboard also warns before the cut-out.** The PA's alarm bit only arrives
+once it shuts down because of over-temperature — and then there is no time left
+to react; the serial connection dies with the shutdown, so the message would
+never arrive at all. When the temperature passes the configured warning
+threshold the same banner and tone therefore trigger, even though the PA reports
+no alarm yet. Threshold and red zone are configurable in the settings
+(`tempwarn`, `temphigh`, `tempalarm`), defaults 50 ° and 60 °.
 
-Dasselbe gilt für das SWR: die Abschaltgrenze der PA ist werksseitig **3,0**
-(einstellbar 1,0–10,0) und steht ebenfalls nicht in der Statusmeldung. Warnung
-und Rotzone sind über `swrwarn`, `swrhigh` und `swralarm` einstellbar, Vorgabe
-2,0 und 2,5. Im Empfang meldet die PA 0,0 — die Warnung greift also nur beim
-Senden, und das Alarmbit der PA käme erst beim Auslösen der Abschaltung.
+The same applies to SWR: the PA's trip limit is **3.0** by factory default
+(adjustable 1.0–10.0) and likewise absent from the status message. Warning and
+red zone are configurable via `swrwarn`, `swrhigh` and `swralarm`, defaults 2.0
+and 2.5. While receiving the PA reports 0.0 — so the warning only applies during
+transmit, and the PA's alarm bit would only come when the cut-out fires.
 
-Diese Einstellungen wirken **sofort**, ohne „Speichern & neu starten" — genau wie die
-Bedienelemente im Hauptbild. Sie brauchen keinen Neustart, und ein Schalter,
-der erst durch einen weit entfernten Speichern-Knopf wirksam wird, sieht aus,
-als täte er nichts. Dasselbe gilt für „Vor dem Update auf STANDBY".
+These settings take effect **immediately**, without "save & restart" — just like
+the controls in the main view. They need no reboot, and a switch that only
+becomes effective through a distant save button looks like it does nothing. The
+same holds for "standby before update".
 
-Der Ton startet erst, nachdem die Seite einmal angeklickt wurde — so verlangt es
-die Autoplay-Richtlinie der Browser. Abschaltbar in den Einstellungen.
+The tone only starts after the page has been clicked once — that is the
+browsers' autoplay policy. It can be switched off in the settings.
 
-**Browser-Benachrichtigungen funktionieren über `http://` nicht.** Die
-Notification-API ist auf „secure contexts" beschränkt. Tückisch dabei: Chrome
-entfernt das `Notification`-Objekt nicht, sondern setzt die Berechtigung
-stillschweigend auf `denied` — das sieht aus, als hätte man selbst abgelehnt.
-Das Dashboard fragt deshalb `isSecureContext` ab, nennt den echten Grund und
-sperrt die Taste. Ton und Banner sind davon unabhängig.
+**Browser notifications do not work over `http://`.** The Notification API is
+restricted to "secure contexts". The tricky part: Chrome does not remove the
+`Notification` object, it silently sets the permission to `denied` — which looks
+as if you had refused yourself. The dashboard therefore queries
+`isSecureContext`, names the real reason and disables the button. Tone and
+banner are unaffected.
 
-### Darstellung
+### Appearance
 
-System, Hell oder Dunkel, umschaltbar in den Einstellungen und im
-`localStorage` gemerkt. Ohne Wahl folgt die Seite `prefers-color-scheme`. Die
-Signalfarben sind im hellen Theme leicht abgedunkelt — `#ff9900` ist auf Weiß
-als Text kaum lesbar.
+System, light or dark, switchable in the settings and remembered in
+`localStorage`. Without a choice the page follows `prefers-color-scheme`. The
+signal colours are slightly darkened in the light theme — `#ff9900` is barely
+readable as text on white.
 
-### Der Hinweis unter dem Zustand
+### The hint below the state
 
-Er zeigt immer den **aktuellen Grund**, nicht ein einmaliges Ereignis; sonst
-stünde nach dem Umschalten eine veraltete Meldung da und direkt nach dem Start
-gar keine. `bandControl()` setzt ihn in jedem Durchlauf neu:
+It always shows the **current reason**, never a one-off event; otherwise a stale
+message would linger after a change and there would be none at all right after
+start-up. `bandControl()` sets it afresh on every pass:
 
-| Code | Bedeutung |
+| Code | Meaning |
 |---|---|
-| `aboff` | TCI-Bandwahl aus |
-| `tcioff` / `tcidis` | TCI-Client abgeschaltet / nicht verbunden |
-| `tcinofreq` | verbunden, aber noch keine QRG |
-| `paoff` | PA antwortet nicht |
-| `unsupported` | Band wird von der PA nicht abgedeckt |
-| `bandok` / `bandset` | Band folgt TCI / wurde umgeschaltet |
-| `tciauto` | TCI weg, PA per `=A` auf ihre eigene Bandwahl zurückgestellt |
-| `selstuck` | PA bleibt auf `A`, obwohl die TCI-Bandwahl sie auf `M` holen will |
+| `aboff` | TCI band selection off |
+| `tcioff` / `tcidis` | TCI client disabled / not connected |
+| `tcinofreq` | connected, but no frequency yet |
+| `paoff` | PA not responding |
+| `unsupported` | band not covered by the PA |
+| `bandok` / `bandset` | band follows TCI / has been switched |
+| `tciauto` | TCI gone, PA put back on its own band select via `=A` |
+| `selstuck` | PA stays on `A` although TCI band selection wants it on `M` |
 
-Nur echte Hindernisse werden orange eingefärbt; „Automatik aus" und „Band folgt
-TCI" sind Zustandsinfos.
+Only genuine obstacles are coloured orange; "automatic off" and "band follows
+TCI" are state information.
 
-### Umschalter „Bandwahl der PA"
+### The "PA band select" switch
 
-Zeigt und setzt Feld 2 (`A`/`M`) — den **Zustand** der AUTO-Taste, nicht die
-konfigurierte Methode. Die Methode (F-Sense, Yaesu CAT, KX2/KX3, JUMA-TRX2,
-FT-817, Manual) steht in der Gerätekonfiguration und taucht in der
-Statusmeldung gar nicht auf.
+Shows and sets field 2 (`A`/`M`) — the **state** of the AUTO button, not the
+configured method. The method (F-Sense, Yaesu CAT, KX2/KX3, JUMA-TRX2, FT-817,
+Manual) lives in the unit's configuration and does not appear in the status
+message at all.
 
-`Auto` schickt `=A`. Für `Manuell` gibt es kein eigenes Kommando — die Firmware
-schickt dafür `=B<aktuelles Band>`: laut Manual ist das eine manuelle Bandwahl,
-sie schaltet `A` nach `M`, ohne das Band zu ändern.
+`Auto` sends `=A`. For `Manual` there is no command of its own — the firmware
+sends `=B<current band>` instead: per the manual that is a manual band
+selection, so it moves `A` to `M` without changing the band.
 
-Der Umschalter ist **gesperrt, solange die TCI-Bandwahl läuft**, und die
-Firmware weist den Befehl dann zusätzlich ab. Dort bestimmt der ESP32 das Band
-und hält die PA aktiv auf `M` — die beiden dürfen sich die Bandwahl nicht
-teilen. Ist die TCI-Bandwahl aus, steht `A` und `M` frei zur Wahl.
+The switch is **locked while TCI band selection is running**, and the firmware
+additionally rejects the command then. There the ESP32 determines the band and
+actively holds the PA on `M` — the two must not share band selection. With TCI
+band selection off, `A` and `M` are free to choose.
 
 ---
 
-## Bandautomatik über TCI
+## Band automation over TCI
 
-TCI ist nicht auf ExpertSDR festgelegt — **deskHPSDR** und **Thetis** sprechen
-es ebenfalls, und die Ports unterscheiden sich (ExpertSDR3 40001, deskHPSDR
-50002). Host und Port sind deshalb frei einstellbar.
+TCI is not tied to ExpertSDR — **deskHPSDR** and **Thetis** speak it as well,
+and the ports differ (ExpertSDR3 40001, deskHPSDR 50002). Host and port are
+therefore freely configurable.
 
-Ausgewertet werden:
+Evaluated messages:
 
-| Nachricht | Verwendung |
+| Message | Use |
 |---|---|
-| `vfo:0,0,<hz>;` | Empfangsfrequenz, Primärquelle |
-| `dds:0,<hz>;` + `if:0,0,<offset>;` | Fallback, solange kein `vfo` gesehen wurde |
-| `trx:0,<bool>;` | TX-Zustand, sperrt den Bandwechsel |
+| `vfo:0,0,<hz>;` | receive frequency, primary source |
+| `dds:0,<hz>;` + `if:0,0,<offset>;` | fallback while no `vfo` has been seen |
+| `trx:0,<bool>;` | TX state, blocks band changes |
 
-Die Automatik ist nach einem Reset **aus** (fail-safe) und wird im Dashboard
-eingeschaltet; der Zustand liegt in NVS.
+The automation is **off** after a reset (fail-safe) and is enabled in the
+dashboard; the state lives in NVS.
 
-1. QRG kommt per TCI.
-2. **Settle-Time 150 ms** — erst senden, wenn die QRG stabil steht, sonst feuert
-   jedes Drehen über eine Bandgrenze ein Bandkommando.
-3. Deckt die PA das Band nicht ab (6 m, 4 m, 2 m, 60 m, LF/MF), geht **kein**
-   `=Bn` raus; das Dashboard sagt warum.
-4. **Während TX wird nie umgeschaltet** — weder wenn TCI `trx:0,true` meldet
-   noch wenn die PA selbst TX anzeigt. Der Wechsel wird nachgeholt.
-5. Gesendet wird nur, wenn die PA ein anderes Band meldet als das Ziel. Das
-   zieht auch nach, wenn die PA zwischendurch aus war.
-6. Meldet die PA `A`, holt der ESP32 sie mit einem `=Bn` auf das laufende Band
-   zurück nach `M` — sonst zöge F-Sense sie irgendwann woanders hin. Höchstens
-   dreimal im 5-s-Abstand; nimmt die PA es nicht an, wird das gemeldet statt
-   endlos gefeuert.
+1. A frequency arrives via TCI.
+2. **Settle time 150 ms** — only send once the frequency has stopped moving,
+   otherwise tuning across a band edge fires a band command every time.
+3. If the PA does not cover the band (6 m, 4 m, 2 m, 60 m, LF/MF) **no** `=Bn`
+   goes out; the dashboard explains why.
+4. **Never switch during TX** — neither when TCI reports `trx:0,true` nor when
+   the PA itself indicates TX. The change is made up for afterwards.
+5. A command is only sent when the PA reports a band other than the target. That
+   also catches up when the PA was off in between.
+6. If the PA reports `A`, the ESP32 pulls it back to `M` with a `=Bn` on the
+   band already in use — otherwise F-Sense would eventually drag it elsewhere.
+   At most three times at 5 s intervals; if the PA will not take it, that is
+   reported instead of firing forever.
 
-### Fallback bei TCI-Verlust
+### Fallback on losing TCI
 
-`=Bn` ist eine *manuelle* Bandwahl und schaltet die PA dabei von `A` nach `M`.
-Die PA fällt bei einem TCI-Ausfall deshalb **nicht** von selbst auf ihre eigene
-Bandwahl zurück, sondern bleibt auf dem zuletzt kommandierten Band stehen.
+`=Bn` is a *manual* band selection and thereby moves the PA from `A` to `M`. So
+after losing TCI the PA does **not** fall back to its own band selection by
+itself, but stays on the last commanded band.
 
-Der Schalter **„Bei TCI-Verlust auf Automatik der PA"** (`tcilosta 1`) schickt
-15 s nach dem Abriss ein `=A`. **Welche Methode** dann greift, steht in der
-Konfiguration der PA; steht sie dort auf `Manual`, bringt `=A` nichts.
+The switch **"fall back to the PA's automatic on TCI loss"** (`tcilosta 1`)
+sends `=A` 15 s after the connection breaks. **Which method** then applies is
+set in the PA's configuration; if that is on `Manual`, `=A` achieves nothing.
 
-Die 15 s liegen bewusst über dem 5-s-Reconnect, damit ein kurzer Aussetzer die
-PA nicht umstellt.
+The 15 s deliberately sit above the 5 s reconnect interval so a brief dropout
+does not reconfigure the PA.
 
-Entscheidend ist der **Zustand**, nicht das Ereignis: solange TCI fehlt und die
-PA auf `M` steht, wird nachgefasst — höchstens dreimal im 5-s-Abstand, damit
-eine bewusste Wahl am Gerät nicht endlos überstimmt wird. Der Zähler beginnt
-neu, wenn die PA wieder hochkommt; sonst hätte ein Aus- und Einschalten der PA
-den Fallback dauerhaft stillgelegt, weil sie dabei auf `M` zurückfällt.
+What matters is the **state**, not the event: as long as TCI is missing and the
+PA sits on `M`, the firmware keeps trying — at most three times at 5 s
+intervals, so a deliberate choice made at the unit is not overridden forever.
+The counter restarts when the PA comes back up; otherwise switching the PA off
+and on would have disabled the fallback for good, because it returns on `M`.
 
-Nicht gesendet wird während TX und solange die PA offline ist. Kommt TCI zurück,
-setzt das nächste `=Bn` die PA ohnehin wieder auf `M`.
+Nothing is sent during TX or while the PA is offline. When TCI returns, the next
+`=Bn` puts the PA back on `M` anyway.
 
-### Zwei Fallstricke bei TCI
+### Two pitfalls with TCI
 
-**`Sec-WebSocket-Protocol` leeren.** `arduinoWebSockets` schickt per Default
-`Sec-WebSocket-Protocol: arduino`. deskHPSDR schließt die Verbindung daraufhin
-**wortlos** — kein HTTP-Fehler, nur ein TCP-Abbau, der sich als `TIME_WAIT`
-zeigt. Isoliert nachgemessen:
+**Clear `Sec-WebSocket-Protocol`.** `arduinoWebSockets` sends
+`Sec-WebSocket-Protocol: arduino` by default. deskHPSDR then closes the
+connection **silently** — no HTTP error, just a TCP teardown showing up as
+`TIME_WAIT`. Measured in isolation:
 
 ```
-nur Standard-Header                  -> HTTP/1.1 101 Switching Protocols
-+ Sec-WebSocket-Protocol: arduino    -> (keine Antwort)
+standard headers only                -> HTTP/1.1 101 Switching Protocols
++ Sec-WebSocket-Protocol: arduino    -> (no reply)
 + Origin: file://                    -> HTTP/1.1 101 Switching Protocols
 + User-Agent: arduino-...            -> HTTP/1.1 101 Switching Protocols
 ```
 
-TCI kennt kein Subprotokoll, deshalb ruft `tci.cpp` `ws.begin(host, port, "/", "")`
-mit leerem vierten Argument auf. Ohne das verbindet der Client **nie**, und der
-Fehler sieht von außen wie ein Netz- oder Firewallproblem aus.
+TCI has no subprotocol, which is why `tci.cpp` calls
+`ws.begin(host, port, "/", "")` with an empty fourth argument. Without it the
+client **never** connects, and from the outside the fault looks like a network
+or firewall problem.
 
-**Ein Client kann TX nicht stoppen.** Naheliegend wäre, bei hohem SWR oder
-einem Alarm den Transceiver per TCI aus dem Sendebetrieb zu holen. Gegen
-deskHPSDR mit laufendem, lokal getastetem TX gemessen:
+**A client cannot stop TX.** The obvious idea is to take the transceiver out of
+transmit via TCI on high SWR or an alarm. Measured against deskHPSDR with a
+running, locally keyed TX:
 
 ```
-trx:0,false;         -> keine Wirkung, Server antwortet mit trx:0,true
-trx:0,false,tci;     -> keine Wirkung
-trx:0,0;             -> keine Wirkung
-tx_enable:0,false;   -> keine Wirkung
+trx:0,false;         -> no effect, server answers with trx:0,true
+trx:0,false,tci;     -> no effect
+trx:0,0;             -> no effect
+tx_enable:0,false;   -> no effect
 ```
 
-Der Server *liest* das Kommando — er antwortet unmittelbar mit dem aktuellen
-Zustand — und lehnt es ab. Vernünftig: ein fremder Prozess soll einem nicht die
-Taste wegnehmen können.
+The server *reads* the command — it answers immediately with the current state —
+and refuses it. Sensibly so: a foreign process should not be able to take the
+key away from you.
 
-`tools/mock-tci.py` ist ein minimaler TCI-Server zum Testen ohne SDR-Software.
-`tools/tci-trx-test.py` und `tools/tci-stop-variants.py` prüfen die Frage oben
-gegen die eigene Software nach; beide senden nie etwas, das TX *einschaltet*.
+`tools/mock-tci.py` is a minimal TCI server for testing without SDR software.
+`tools/tci-trx-test.py` and `tools/tci-stop-variants.py` re-check the question
+above against your own software; neither ever sends anything that turns TX *on*.
 
 ---
 
-## Fehlerverhalten
+## Failure behaviour
 
-Grundsatz: bei jeder Störung wird **nichts geschaltet**, statt zu raten.
+Principle: on any fault **nothing is switched**, rather than guessing.
 
-| Störung | Verhalten |
+| Fault | Behaviour |
 |---|---|
-| TCI-Software beendet | Retry alle 5 s, endlos. Kein `=Bn`, die PA bleibt auf ihrem Band. QRG und TX-Zustand werden **verworfen**, nicht eingefroren |
-| WLAN weg | ESP32 verbindet selbst neu; die PA wird weiter gepollt, der Serial-Teil hängt nicht am Netz |
-| ESP32 startet neu | Poll bricht ab → die PA fällt nach 5 s auf STANDBY, sofern sie *per Fernsteuerung* auf OPERATE stand. Vom Frontpanel gesetztes OPERATE bleibt |
-| PA aus / Kabel ab | Nach 3 s `OFFLINE`, keine Bandkommandos, erholt sich selbst |
-| Band nicht abgedeckt | Kein `=Bn`, PA bleibt auf dem alten Band, Hinweis erklärt es |
-| TX aktiv | Bandwechsel wird zurückgestellt und nachgeholt, sobald TX endet |
-| Alarm der PA | Wird angezeigt, **nicht** automatisch quittiert |
-| Hauptschleife hängt | Task-Watchdog (20 s) startet neu |
-| WLAN bleibt weg | Reconnect alle 15 s, nach 5 Minuten Neustart |
-| RSSI dauerhaft schlecht | nach 1 Minute unter −75 dBm neu verbinden, sucht den stärksten AP |
+| TCI software closed | retry every 5 s, indefinitely. No `=Bn`, the PA stays on its band. Frequency and TX state are **discarded**, not frozen |
+| Wi-Fi gone | the ESP32 reconnects by itself; the PA is still polled, the serial side does not depend on the network |
+| ESP32 restarts | polling stops → the PA falls back to STANDBY after 5 s, provided it was put into OPERATE *by remote control*. OPERATE set at the front panel stays |
+| PA off / cable unplugged | `OFFLINE` after 3 s, no band commands, recovers by itself |
+| Band not covered | no `=Bn`, the PA stays on the old band, the hint explains it |
+| TX active | the band change is deferred and made up once TX ends |
+| Alarm from the PA | displayed, **not** acknowledged automatically |
+| Main loop stuck | task watchdog (20 s) reboots |
+| Wi-Fi stays gone | reconnect every 15 s, reboot after 5 minutes |
+| RSSI persistently poor | reconnect after a minute below −75 dBm, picking the strongest AP |
 
-Beim TCI-Abbruch werden QRG und TX-Zustand bewusst zurückgesetzt. Sonst würde
-ein eingefrorenes `tx = true` — Abbruch mitten im Senden — den Bandwechsel nach
-dem Reconnect **dauerhaft** blockieren. Der Server schickt beim Verbinden ohnehin
-den kompletten Zustand neu.
+On a TCI disconnect, frequency and TX state are reset deliberately. Otherwise a
+frozen `tx = true` — a break in the middle of transmitting — would block band
+changes **permanently** after the reconnect. The server sends the complete state
+again on connect anyway.
 
 ---
 
-## Protokoll der PA
+## The PA's protocol
 
-Kommandos in ASCII, terminiert mit `\n\r` (0x0A 0x0D):
+Commands in ASCII, terminated with `\n\r` (0x0A 0x0D):
 
 | | |
 |---|---|
-| `=R` | Status abfragen |
+| `=R` | request status |
 | `=O` / `=S` | OPERATE / STANDBY |
-| `=A` | automatische Bandwahl der PA |
-| `=Bn` | Band, n = 1 (160 m) … 9 (10 m) |
-| `=Gn` | Abschwächer, n = 1…4 |
-| `=C` | Alarm quittieren |
-| `=Pn` | Power off, n = 0 ohne / 1 mit Zustandsspeicherung |
+| `=A` | the PA's automatic band selection |
+| `=Bn` | band, n = 1 (160 m) … 9 (10 m) |
+| `=Gn` | attenuator, n = 1…4 |
+| `=C` | clear alarm |
+| `=Pn` | power off, n = 0 without / 1 with saving the state |
 
-Antwort auf `=R`, **13** Felder, z. B. `O:A:T:C: 5:1:1.0:14.09: 8.1: 27.2: 26:0: 0`:
+Reply to `=R`, **13** fields, e.g. `O:A:T:C: 5:1:1.0:14.09: 8.1: 27.2: 26:0: 0`:
 
-| # | Wert | Bedeutung |
+| # | Value | Meaning |
 |---|---|---|
-| 1 | `O`/`S` | Operate / Standby |
-| 2 | `A`/`M` | Bandwahl automatisch / manuell |
-| 3 | `T`/`R` | Transmit / Receive |
-| 4 | `C`/`F` | Temperaturskala |
-| 5 | 1–9, 10 | Band, 10 = unknown |
-| 6 | 1–4 | Abschwächer: G1 = 6 dB, G2 = 4 dB, G3 = 2 dB, G4 = 0 dB |
+| 1 | `O`/`S` | operate / standby |
+| 2 | `A`/`M` | band selection automatic / manual |
+| 3 | `T`/`R` | transmit / receive |
+| 4 | `C`/`F` | temperature scale |
+| 5 | 1–9, 10 | band, 10 = unknown |
+| 6 | 1–4 | attenuator: G1 = 6 dB, G2 = 4 dB, G3 = 2 dB, G4 = 0 dB |
 | 7 | n.n | VSWR |
-| 8 | nn.nn | Versorgungsspannung |
-| 9 | nn.n | Strom |
-| 10 | nnn.n | Ausgangsleistung |
-| 11 | nnn | Temperatur |
-| 12 | 0–3 | Lüfter: aus / langsam / mittel / schnell |
-| 13 | **HH** | Alarme, **hexadezimal** |
+| 8 | nn.nn | supply voltage |
+| 9 | nn.n | current |
+| 10 | nnn.n | output power |
+| 11 | nnn | temperature |
+| 12 | 0–3 | fan: off / slow / medium / fast |
+| 13 | **HH** | alarms, **hexadecimal** |
 
-Alarmbits: 0 High SWR · 1 Over-Current · 2 High Temperature · 3 High Voltage ·
-4 Low Voltage Pre-Limit · 5 Low Voltage Final Limit.
+Alarm bits: 0 high SWR · 1 over-current · 2 high temperature · 3 high voltage ·
+4 low voltage pre-limit · 5 low voltage final limit.
 
-### Drei Dinge, die das Manual so nicht hergibt
+### Three things the manual does not quite tell you
 
-**Feld 13 ist hexadezimal.** Wer es dezimal liest, dekodiert ab `0x0A` falsch:
-`10` (Low Voltage Pre-Limit, Bit 4) erscheint dann als Over-Current + High
-Voltage. `tests/test_parse.cpp` prüft genau das.
+**Field 13 is hexadecimal.** Reading it as decimal decodes wrongly from `0x0A`
+on: `10` (low voltage pre-limit, bit 4) then appears as over-current plus high
+voltage. `tests/test_parse.cpp` checks exactly that.
 
-**Der Zeilenterminator ist drei Bytes.** Gemessen: 45 Bytes pro Zeile bei 42
-Zeichen Nutzlast, und der Hexdump endet reproduzierbar auf `0D 0A 0D`
-(CR LF CR) — nicht das dokumentierte `\n\r`. Der Parser behandelt jedes CR und
-LF als Zeilenende und verwirft Leerzeilen. Wer exakt auf `\n\r` matcht,
-verlässt sich darauf, dass die überzähligen Bytes zufällig harmlos landen.
+**The line terminator is three bytes.** Measured: 45 bytes per line for 42
+characters of payload, and the hex dump reproducibly ends on `0D 0A 0D`
+(CR LF CR) — not the documented `\n\r`. The parser treats every CR and LF as a
+line end and discards empty lines. Anyone matching `\n\r` exactly is relying on
+the surplus bytes landing harmlessly by chance.
 
-**Der Abschwächer ist pro Band gespeichert.** Beim Bandwechsel springt Feld 6
-mit — das ist kein Fehler der Firmware.
+**The attenuator is stored per band.** Field 6 changes along with a band switch
+— that is not a bug in the firmware.
 
-Dazu zwei Punkte, die im Manual stehen, aber leicht übersehen werden: die PA
-fällt **5 s** nach einem fernbedienten `=O` von selbst auf STANDBY zurück, wenn
-keine Nachrichten mehr kommen (deshalb der 500-ms-Poll). Und Feld 6 ist ein
-**Abschwächer**, kein Verstärkungsfaktor.
+Two further points that are in the manual but easily missed: the PA falls back
+to STANDBY by itself **5 s** after a remote `=O` when no more messages arrive
+(hence the 500 ms poll). And field 6 is an **attenuator**, not a gain factor.
 
 ---
 
-## Wartung und Fehlersuche
+## Maintenance and troubleshooting
 
 | | |
 |---|---|
-| Dashboard | `http://juma-pa.local/` — die Rohstatuszeile steht in der Kopfzeile |
-| Zustand als JSON | `curl http://juma-pa.local/api/state` |
-| Konsole | `telnet juma-pa.local`, oder `pio device monitor` über USB |
-| Flashen | `./tools/flash-wifi.sh` oder das Formular im Dashboard |
+| Dashboard | `http://juma-pa.local/` — the raw status line is in the header |
+| State as JSON | `curl http://juma-pa.local/api/state` |
+| Console | `telnet juma-pa.local`, or `pio device monitor` over USB |
+| Flashing | `./tools/flash-wifi.sh` or the form in the dashboard |
 
-### Konsolenkommandos
+### Console commands
 
 ```
-show                aktuelle Konfiguration und Zustand
-scan                WLAN-Scan
-hostname <name>     Netzname fuer WLAN, mDNS und OTA
-ssid <name>         WLAN-SSID setzen
-pass <secret>       WLAN-Passwort setzen
-tci <host> [port]   TCI-Host der SDR-Software (Port default 50002)
-tcien <0|1>         TCI-Client aus/ein
-autoband <0|1>      Bandwahl per TCI aus/ein
-otastby <0|1>       vor dem Firmware-Update =S an die PA
-tcilosta <0|1>      bei TCI-Verlust =A senden (PA waehlt wieder selbst)
-tempwarn <grad>     Vorwarnung ab dieser Temperatur
-temphigh <grad>     ab hier rot in der Anzeige
-tempalarm <0|1>     Vorwarnung aus/ein
-swrwarn <wert>      SWR-Vorwarnung ab diesem Wert
-swrhigh <wert>      SWR ab hier rot in der Anzeige
-swralarm <0|1>      SWR-Vorwarnung aus/ein
-sel <a|m>           Bandwahl der PA auf Automatik / Manuell
-save                speichern und neu starten
-reboot              nur neu starten
-pa <kdo>            Rohkommando an die PA, z.B.  pa =R
-raw                 letzte Statuszeile der PA
+show                current configuration and state
+scan                scan for Wi-Fi networks
+hostname <name>     network name for Wi-Fi, mDNS and OTA
+ssid <name>         set the Wi-Fi SSID
+pass <secret>       set the Wi-Fi password
+tci <host> [port]   TCI host of the SDR software (port default 50002)
+tcien <0|1>         TCI client off/on
+autoband <0|1>      band selection via TCI off/on
+otastby <0|1>       send =S to the PA before a firmware update
+tcilosta <0|1>      on TCI loss send =A (the PA selects again)
+tempwarn <deg>      pre-warning from this temperature
+temphigh <deg>      red in the gauge from here
+tempalarm <0|1>     temperature pre-warning off/on
+swrwarn <value>     SWR pre-warning from this value
+swrhigh <value>     SWR red in the gauge from here
+swralarm <0|1>      SWR pre-warning off/on
+sel <a|m>           PA band select to automatic / manual
+save                save and restart
+reboot              restart only
+pa <cmd>            raw command to the PA, e.g.  pa =R
+raw                 last status line from the PA
 ```
 
-`show` zählt empfangene **Bytes** getrennt von verstandenen Zeilen und zeigt die
-letzten Rohbytes als Hex. Damit lässt sich die Verkabelung eingrenzen:
+`show` counts received **bytes** separately from understood lines and shows the
+last raw bytes as hex. That narrows down the wiring:
 
-| Anzeige | Bedeutung |
+| Display | Meaning |
 |---|---|
-| `Bytes 0` | es kommt gar nichts — PA aus, Remote-Mode nicht gesetzt, oder Tip/Ring vertauscht |
-| `Bytes > 0`, `Zeilen ok 0`, Hex sieht wie Müll aus | Baudrate oder Framing falsch |
-| `Bytes > 0`, `verworfen > 0` | Verkabelung stimmt, aber die Antwort ist keine Statuszeile |
+| `bytes 0` | nothing arrives at all — PA off, remote mode not set, or tip/ring swapped |
+| `bytes > 0`, `lines ok 0`, hex looks like junk | wrong baud rate or framing |
+| `bytes > 0`, `dropped > 0` | wiring is fine, but the reply is not a status line |
 
-### Firmware-Update über WLAN
+### Firmware update over Wi-Fi
 
-`espota`/ArduinoOTA öffnet auf dem **Host** einen Listener und lässt das
-**Gerät zurückverbinden**. In segmentierten Netzen scheitert das: die
-Authentifizierung auf Port 3232 klappt, danach kommt `No response from device`.
+`espota`/ArduinoOTA opens a listener on the **host** and has the **device
+connect back**. In segmented networks that fails: authentication on port 3232
+works, then comes `No response from device`.
 
-Deshalb nimmt der ESP32 die Firmware zusätzlich selbst per `POST /update` an
-(`Update.h`, Basic-Auth `admin`):
+The ESP32 therefore also accepts the firmware itself via `POST /update`
+(`Update.h`, basic auth `admin`):
 
 ```sh
-./tools/flash-wifi.sh juma-pa.local      # holt das Passwort aus platformio_local.ini
-# oder von Hand:
+./tools/flash-wifi.sh juma-pa.local      # takes the password from platformio_local.ini
+# or by hand:
 curl -u admin:$JUMA_OTA_PASS -F firmware=@.pio/build/esp32dev/firmware.bin \
      http://juma-pa.local/update
 ```
 
-Im Dashboard geht es auch über das Upload-Feld. Dort fragt der Browser vorher
-nach `admin` und dem Passwort — die Seite löst das mit einem geschützten
-`GET /update` aus, bevor die Datei läuft. Ohne das würde erst das ganze
-Megabyte hochgeladen, dann käme 401, und nach der Abfrage ginge es von vorn los.
+The dashboard offers an upload field as well. There the browser asks for `admin`
+and the password beforehand — the page triggers that with a protected
+`GET /update` before the file is sent. Without it the whole megabyte would be
+uploaded first, then a 401 would arrive, and after the prompt it would start
+over.
 
-Das läuft in der Richtung Host → Gerät und ist von der Netztrennung unabhängig.
-mDNS (`juma-pa.local`) löst über Segmentgrenzen ebenfalls nicht auf, dort die IP
-eintragen. `[env:ota]` in der `platformio.ini` bleibt für den Fall, dass im
-selben Segment geflasht wird.
+This runs host → device and is independent of network segmentation. mDNS
+(`juma-pa.local`) does not resolve across segment boundaries either, so use the
+IP address there. `[env:ota]` in `platformio.ini` remains for the case of
+flashing within the same segment.
 
-Vor dem Schreiben schickt die Firmware der PA ein `=S` — während des Flashens
-läuft `loop()` nicht. **Abschaltbar** per `otastby 0`: bei häufigen
-Entwicklungs-Uploads nimmt es sonst jedes Mal die Betriebsart weg.
+Before writing, the firmware sends the PA a `=S` — `loop()` does not run while
+flashing. **Switchable** via `otastby 0`: with frequent development uploads it
+otherwise takes away the operating mode every time.
 
 ---
 
-## Entwicklung
+## Development
 
-Das Dashboard wird **gepackt ausgeliefert**. `tools/gzip_html.py` läuft als
-`pre:`-Schritt vor jedem Build, liest den Rohstring aus `src/index_html.h` und
-erzeugt `src/index_html_gz.h`. Bearbeitet wird also weiter nur die lesbare
-Datei; das erzeugte Byte-Array steht in der `.gitignore`.
+The dashboard is **served compressed**. `tools/gzip_html.py` runs as a `pre:`
+step before every build, reads the raw string from `src/index_html.h` and
+generates `src/index_html_gz.h`. So only the readable file is ever edited; the
+generated byte array is in `.gitignore`.
 
-| | ungepackt | gzip |
+| | uncompressed | gzip |
 |---|---|---|
-| übertragen | 46,4 kB | **16,0 kB** (34 %) |
-| Seite laden | 0,24–0,27 s | **0,08–0,12 s** |
-| Flash | 81,7 % | **78,9 %** |
+| transferred | 46.4 kB | **16.0 kB** (34 %) |
+| page load | 0.24–0.27 s | **0.08–0.12 s** |
+| flash | 81.7 % | **78.9 %** |
 
-Das lohnt doppelt: das Skript sitzt am Dokumentende und läuft erst, wenn alles
-angekommen ist. Bei schlechter Funklage stand die Seite vorher sekundenlang mit
-Rahmen da, aber ohne Tasten und Anzeigen — das sieht aus wie ein Hänger, ist
-aber nur eine halb geladene Seite.
+This pays off twice: the script sits at the end of the document and only runs
+once everything has arrived. With a poor radio link the page previously sat
+there for seconds with its frames but without buttons or gauges — which looks
+like a hang but is merely a half-loaded page.
 
-
-| Datei | Inhalt |
+| File | Content |
 |---|---|
-| `include/config.h` | Pins, Timings, Passwörter, `FW_VERSION` |
-| `src/juma_status.h/.cpp` | Statusparser, Arduino-frei → auf dem Host testbar |
-| `src/juma.h/.cpp` | Serial-Treiber: Poll, Kommando-Queue, Zeilenzerlegung |
-| `src/bands.h/.cpp` | Frequenz → JUMA-Bandindex |
-| `src/tci.h/.cpp` | TCI-Client, liefert QRG und TX-Zustand |
-| `src/web.h/.cpp` | HTTP + WebSocket-Server, Settings in NVS, OTA-Endpunkt |
-| `src/console.h/.cpp` | Konsole auf UART0 und Telnet :23 |
-| `src/index_html.h` | Dashboard, eine Datei — die einzige, die bearbeitet wird |
-| `tools/gzip_html.py` | packt es beim Bauen nach `src/index_html_gz.h` |
-| `src/main.cpp` | Bandcontroller, Watchdog, mDNS, Verdrahtung |
-| `tests/test_parse.cpp` | 102 Checks für Statusparser und Bandzuordnung |
+| `include/config.h` | pins, timings, passwords, `FW_VERSION` |
+| `src/juma_status.h/.cpp` | status parser, free of Arduino → testable on the host |
+| `src/juma.h/.cpp` | serial driver: polling, command queue, line splitting |
+| `src/bands.h/.cpp` | frequency → JUMA band index |
+| `src/tci.h/.cpp` | TCI client, supplies frequency and TX state |
+| `src/web.h/.cpp` | HTTP + WebSocket server, settings in NVS, OTA endpoint |
+| `src/console.h/.cpp` | console on UART0 and telnet :23 |
+| `src/index_html.h` | dashboard, one file — the only one that gets edited |
+| `tools/gzip_html.py` | compresses it at build time into `src/index_html_gz.h` |
+| `src/main.cpp` | band controller, watchdog, mDNS, wiring |
+| `tests/test_parse.cpp` | 102 checks for the status parser and band mapping |
 
-`./tests/run.sh` läuft auf dem Host und braucht keinen ESP32 — der Statusparser
-und die Bandzuordnung sind bewusst frei von Arduino-Abhängigkeiten.
+`./tests/run.sh` runs on the host and needs no ESP32 — the status parser and the
+band mapping are deliberately free of Arduino dependencies.
 
-### Zwei Stolpersteine der Plattform
+### Platform pitfalls
 
-**`WiFi.setSleep(false)` muss NACH `WiFi.begin()` stehen.** Davor gesetzt wird
-es beim Verbinden wieder verworfen. Mit aktivem Modem-Sleep wartet jeder
-Roundtrip auf das nächste Beacon:
+**`WiFi.setSleep(false)` must come AFTER `WiFi.begin()`.** Set before, it is
+discarded again on connect. With modem sleep active every round trip waits for
+the next beacon:
 
-| | mit Sleep | ohne |
+| | with sleep | without |
 |---|---|---|
-| Seite (24 kB) | 6–20 s, teils abgebrochen | **0,19–0,35 s** |
-| Durchsatz | ~1,2 kB/s | ~100 kB/s |
+| page (24 kB) | 6–20 s, partly aborted | **0.19–0.35 s** |
+| throughput | ~1.2 kB/s | ~100 kB/s |
 | `/api/state` | 26–80 ms | 26–80 ms |
 
-Dass die kleine JSON-Antwort *nicht* langsamer war, ist der entscheidende
-Hinweis: ein Roundtrip kostete ein Beacon-Intervall, viele Roundtrips fielen
-entsprechend ins Gewicht.
+That the small JSON reply was *not* slower is the decisive clue: one round trip
+cost a beacon interval, so many round trips weighed accordingly.
 
-**`WIFI_FAST_SCAN` nimmt den erstbesten AP, nicht den stärksten.** Das ist der
-Default von arduino-esp32. Hängen mehrere Zugangspunkte an derselben SSID,
-landet das Gerät leicht auf dem schwächsten — mit Paketverlust, der wie ein
-Firmwarefehler aussieht. Gemessen an einem Aufbau mit zwei APs derselben SSID
-(Kanal 5 schwach, Kanal 10 stark) und einem fremden Netz auf dem überlappenden
-Kanal 3:
+**`WIFI_FAST_SCAN` takes the first AP it finds, not the strongest.** That is the
+arduino-esp32 default. With several access points on one SSID the device easily
+ends up on the weakest — with packet loss that looks like a firmware fault.
+Measured on a setup with two APs of the same SSID (channel 5 weak, channel 10
+strong) and a foreign network on the overlapping channel 3:
 
-| | vorher | mit `WIFI_ALL_CHANNEL_SCAN` + `WIFI_CONNECT_AP_BY_SIGNAL` |
+| | before | with `WIFI_ALL_CHANNEL_SCAN` + `WIFI_CONNECT_AP_BY_SIGNAL` |
 |---|---|---|
 | RSSI | −74 dBm | **−64 dBm** |
-| Paketverlust | 45 % | **0 %** |
-| Ping-Median / Max | 19 ms / 5010 ms | **5,7 ms / 29 ms** |
-| Seite (40 kB) | 0,4–0,5 s | **0,15–0,21 s** |
+| packet loss | 45 % | **0 %** |
+| ping median / max | 19 ms / 5010 ms | **5.7 ms / 29 ms** |
+| page (40 kB) | 0.4–0.5 s | **0.15–0.21 s** |
 
-**Und der ESP32 roamt nicht.** Einmal assoziiert, bleibt er an seinem AP, auch
-wenn der Pegel einbricht — arduino-esp32 hat keine Roaming-Logik. Bei mehreren
-APs auf derselben SSID (CAPsMAN, UniFi und Ähnliches) hängt er dann am
-schlechtesten, ohne dass die Verbindung je formal abbricht. Deshalb verbindet
-der Supervisor neu, wenn RSSI länger als eine Minute unter −75 dBm liegt,
-höchstens alle fünf Minuten. Die Suche nimmt dabei wieder den stärksten AP.
+**And the ESP32 does not roam.** Once associated it stays with its AP even when
+the signal collapses — arduino-esp32 has no roaming logic. With several APs on
+one SSID (CAPsMAN, UniFi and the like) it then clings to the worst one without
+the connection ever formally dropping. That is why the supervisor reconnects
+when RSSI stays below −75 dBm for more than a minute, at most every five
+minutes. The scan then picks the strongest AP again.
 
-Auf der Gegenseite hilft eine Access-List, die zu schwache Clients abweist —
-in CAPsMAN etwa `signal-range=-120..-80 action=reject`. Dann muss der Client
-sich einen anderen AP suchen, statt an einem schlechten zu kleben. Die Schwelle
-mit Bedacht wählen: liegt sie zu hoch, kommt das Gerät von manchen Plätzen gar
-nicht mehr ins Netz.
+On the other side, an access list that rejects clients that are too weak helps —
+in CAPsMAN for instance `signal-range=-120..-80 action=reject`. The client then
+has to look for another AP instead of clinging to a poor one. Choose the
+threshold with care: set too high, the device cannot get onto the network from
+some locations at all.
 
-Der `scan`-Befehl auf der Konsole zeigt, was das Gerät selbst hört — damit lässt
-sich „zu weit weg" von „Kanal zugestopft" unterscheiden, bevor man an der
-Firmware sucht.
+The `scan` command on the console shows what the device itself hears — that
+separates "too far away" from "channel congested" before you go looking in the
+firmware.
 
-**Kein WLAN-Wächter heißt: der Watchdog hilft nicht.** `WiFi.begin()` nur in
-`setup()` aufzurufen reicht nicht. Bricht das WLAN weg, läuft die Schleife
-munter weiter, füttert den Watchdog und pollt die PA — das Gerät ist lediglich
-unerreichbar. Von außen ist das von einem Absturz nicht zu unterscheiden.
-Deshalb prüft ein Supervisor alle 5 s, verbindet alle 15 s neu und startet nach
-5 Minuten ohne WLAN durch.
+**No Wi-Fi supervisor means the watchdog does not help.** Calling `WiFi.begin()`
+only in `setup()` is not enough. If Wi-Fi drops, the loop keeps running happily,
+keeps feeding the watchdog and keeps polling the PA — the device is merely
+unreachable. From the outside that is indistinguishable from a crash. Hence a
+supervisor that checks every 5 s, reconnects every 15 s and reboots after
+5 minutes without Wi-Fi.
 
-**`WEBSOCKETS_SERVER_CLIENT_MAX` ist per Default 5.** Jeder Tab und jeder Reload
-belegt einen Platz, und Verbindungen, die der Browser nicht sauber geschlossen
-hat, bleiben stehen. Sind alle Plätze mit solchen Leichen belegt, lädt die Seite
-noch, bekommt aber keine Daten mehr — das sieht aus wie ein Hänger. Deshalb 8
-Plätze plus `enableHeartbeat(15000, 3000, 2)`, und die Seite sagt bei
-Verbindungsverlust deutlich Bescheid, statt still auf alten Werten einzufrieren.
+**`WEBSOCKETS_SERVER_CLIENT_MAX` is 5 by default.** Every tab and every reload
+occupies a slot, and connections the browser did not close cleanly linger. Once
+all slots are taken by such corpses the page still loads but receives no data —
+which looks like a hang. Hence 8 slots plus `enableHeartbeat(6000, 2000, 2)`.
+
+**`WEBSOCKETS_TCP_TIMEOUT` is 5000 ms by default.** A client that does not keep
+up blocks the write — and with it the single main loop — for five seconds. On a
+LAN a healthy client needs a fraction of that, so the build sets 250 ms.
+
+**The browser needs a watchdog of its own.** The server can stop sending without
+closing the connection; then no `onclose` arrives and the page silently holds
+the last state — green dot, old frequency, everything frozen. If updates stop
+for more than four seconds, the dashboard treats the connection as dead, says so
+and rebuilds it.
 
 ---
 
-## Lizenz
+## Licence
 
-MIT — siehe [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).
 
-Keine Verbindung zu Juma Radio; „JUMA" und „PA-100D" gehören ihren jeweiligen
-Inhabern. Die Protokollangaben stammen aus dem offiziellen
+Not affiliated with Juma Radio; "JUMA" and "PA-100D" belong to their respective
+owners. The protocol details come from the official
 [PA100-D Operating Manual v4.00a](https://www.jumaradio.com/juma-pa100/).

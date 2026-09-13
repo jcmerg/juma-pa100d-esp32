@@ -1,14 +1,14 @@
 #pragma once
 #include <Arduino.h>
 
-// Dashboard. Grenzen und Farben der Pegelanzeigen:
-//   RF    0..150 W, warn ab 100, hoch ab 120
-//   VSWR  1..3,     warn ab 1.5, hoch ab 2
-//   Temp  20..80,   warn ab 50,  hoch ab 60
-//   normal #00b33c, warn #ff9900, hoch #e60000, unbeleuchtet #595959
+// Dashboard. Ranges and colours of the level displays:
+//   RF    0..150 W, warn from 100, high from 120
+//   VSWR  1..3,     warn from 1.5, high from 2
+//   temp  20..80,   warn from 50,  high from 60
+//   normal #00b33c, warn #ff9900, high #e60000, unlit #595959
 //
-// Alle Texte stehen im Objekt L (de/en). Die Firmware schickt fuer Hinweise nur
-// einen Code plus Argument, damit hier nichts Festverdrahtetes uebrig bleibt.
+// All wording lives in the object L (de/en). For hints the firmware sends only
+// a code plus an argument, so nothing stays hard-wired on that side.
 static const char INDEX_HTML[] PROGMEM = R"HTML(
 <!doctype html><html lang="de"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -16,8 +16,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(
 :root{--bg:#111;--card:#1e2228;--card2:#191d23;--line:#3a4049;--fg:#eee;--dim:#8b95a3;
 --ok:#00b33c;--warn:#ff9900;--bad:#e60000;--off:#595959;--acc:#0eb8c0;
 --btn:#272c34;--btn2:#2a2f37;--sw:#3a4049}
-/* Hell: gleiche Semantik, aber die Signalfarben leicht abgedunkelt - #ff9900
-   auf Weiss ist als Text kaum lesbar. */
+/* Light: same semantics, but the signal colours slightly darkened - #ff9900
+   is barely readable as text on white. */
 :root[data-theme="light"]{--bg:#eef1f5;--card:#fff;--card2:#f5f7fa;--line:#d2d8e0;
 --fg:#161a1f;--dim:#5c6674;--ok:#079c35;--warn:#c97a00;--bad:#cc1f1a;--off:#ccd2da;
 --acc:#0a7b82;--btn:#e7ebf0;--btn2:#dfe4ea;--sw:#b9c1cb}
@@ -112,7 +112,7 @@ border-color:rgba(255,255,255,.35);color:#fff;font-weight:600}
 @keyframes abpulse{0%,100%{opacity:1}50%{opacity:.55}}
 .alarmbar.on{animation:abpulse 1.1s ease-in-out infinite}
 body.off .wrap{opacity:.4;filter:grayscale(.6)}
-/* Die Balken liegen fix oben - sonst verdecken sie die Kopfzeile */
+/* The banners are pinned to the top - otherwise they cover the header */
 body.off .wrap,body.alarm .wrap{padding-top:52px}
 .note{font-size:12px;color:var(--dim);margin-top:10px;min-height:1em}
 .note.warn{color:var(--warn)}
@@ -274,7 +274,7 @@ input[type=file]{padding:7px}
 </div>
 
 <script>
-// --- Texte ----------------------------------------------------------------
+// --- Wording --------------------------------------------------------------
 const L={
 de:{bandHdr:"Band — PA meldet",abLabel:"Bandwahl per TCI",
 attHdr:"Abschwächer",
@@ -340,7 +340,7 @@ function t(k,a){const v=L[lang][k];return (a===undefined)?v:String(v).replace("%
 
 const BANDS=[[1,"160m"],[2,"80m"],[3,"40m"],[4,"30m"],[5,"20m"],[6,"17m"],[7,"15m"],[8,"12m"],[9,"10m"]];
 const AMASK=[1,2,4,8,16,32];
-// Aus dem CSS lesen, damit der Hell/Dunkel-Wechsel auch die Anzeigen erfasst
+// Read from the CSS so switching light/dark also reaches the gauges
 let C={};
 function readColors(){
   const cs=getComputedStyle(document.documentElement);
@@ -351,7 +351,7 @@ readColors();
 const $=i=>document.getElementById(i);
 let ws,st={},offArm=0;
 
-// --- Pegelbalken ----------------------------------------------------------
+// --- Level bars -----------------------------------------------------------
 const NSEG=36;
 function mkLevel(el,o){
   el.dataset.cfg=JSON.stringify(o);
@@ -363,8 +363,8 @@ function mkLevel(el,o){
      '<span>'+o.high+'</span><span>'+o.max+'</span></div>';
   el.innerHTML=s;
 }
-// Farbe nach der eigenen Position des Segments - der Balken zeigt so die Zonen,
-// statt bei Ueberschreitung komplett umzuschlagen.
+// Colour by the segment's own position - that way the bar shows the zones
+// instead of flipping over entirely once a threshold is passed.
 function segColor(o,i){
   const val=o.min+(i+0.5)*(o.max-o.min)/NSEG;
   return val>=o.high?C.bad:val>=o.warn?C.warn:C.ok;
@@ -378,8 +378,8 @@ function setLevel(el,val,dec){
   segs.forEach((s,i)=>{s.style.background=i<lit?segColor(o,i):C.off});
   n.style.color=!ok?"var(--dim)":val>=o.high?C.bad:val>=o.warn?C.warn:"var(--fg)";
 }
-// Die SWR-Zonen kommen aus den Einstellungen - die Abschaltgrenze der PA
-// (Werksvorgabe 3.0) steht nicht in der Statusmeldung.
+// The SWR zones come from the settings - the PA's trip limit (factory default
+// 3.0) is not part of the status message.
 let SWRWARN=2.0,SWRHIGH=2.5;
 function buildLevels(){
   mkLevel($("lRf"), {label:"RF",   min:0, max:150, warn:100, high:120, unit:" W"});
@@ -387,7 +387,7 @@ function buildLevels(){
 }
 buildLevels();
 
-// --- Rundanzeigen: 180-Grad-Bogen mit Zonenfarben -------------------------
+// --- Dial gauges: 180 degree arc with zone colours ------------------------
 const GA1=180,GR=40,GCX=50,GCY=47;
 function pol(r,deg){const a=(deg-180)*Math.PI/180;return[GCX+r*Math.cos(a),GCY+r*Math.sin(a)]}
 function arcPath(r,d0,d1){
@@ -395,16 +395,16 @@ function arcPath(r,d0,d1){
   return "M"+p0[0].toFixed(2)+" "+p0[1].toFixed(2)+" A"+r+" "+r+" 0 "+
          ((d1-d0)>180?1:0)+" 1 "+p1[0].toFixed(2)+" "+p1[1].toFixed(2);
 }
-// mark=true: statt eines Bogens von unten nur eine Marke am Messwert. Fuer
-// Groessen, die sich in einem schmalen Band bewegen - ein gefuellter Bogen
-// wuerde dort die Zonen ueberdecken und bei Ueberschreitung den gesamten
-// Bereich einfaerben, als waere alles kritisch.
+// mark=true: a marker at the value instead of an arc filled from the bottom.
+// For quantities that live in a narrow band - a filled arc would cover the
+// zones there and, once exceeded, colour the whole range as if everything
+// were critical.
 function mkGauge(el,zones,unit,ticks,mark){
   el.dataset.mark = mark ? "1" : "";
   let g='<svg viewBox="-10 -10 120 74">';
   zones.forEach((z,i)=>{
     const f0=i?zones[i-1][0]:0;
-    // Deckkraft per CSS, damit das helle Theme sie anheben kann
+    // opacity via CSS so the light theme can raise it
     g+='<path class="gz" d="'+arcPath(GR,f0*GA1,z[0]*GA1)+
        '" fill="none" stroke="'+z[1]+'" stroke-width="11"/>';
   });
@@ -427,7 +427,7 @@ function setGauge(el,frac,text,color){
     const a=f*GA1, w=2.6;
     val.setAttribute("d", arcPath(GR,Math.max(0,a-w),Math.min(GA1,a+w)));
     val.setAttribute("stroke",C.fg);            // Kontrast statt Zonenfarbe,
-    val.setAttribute("stroke-width","15");      // sonst geht sie in der Zone unter
+    val.setAttribute("stroke-width","15");      // otherwise it disappears into the zone
     num.textContent=text; num.setAttribute("fill",color);
     return;
   }else{
@@ -436,29 +436,29 @@ function setGauge(el,frac,text,color){
   val.setAttribute("stroke",color);
   num.textContent=text;
   num.setAttribute("fill",color);
-  // "13.68" ist doppelt so breit wie "27" - sonst stoesst die Zahl an den Bogen
+  // "13.68" is twice as wide as "27" - otherwise the number hits the arc
   num.setAttribute("font-size", text.length>=5 ? 15 : text.length>=4 ? 18 : 21);
 }
-// Skalenenden fest, Warn- und Rotschwelle kommen aus den Einstellungen -
-// die Abschaltgrenze der PA steht nicht in der Statusmeldung, sie muss also
-// von Hand gepflegt werden.
+// Scale ends fixed, warn and red thresholds come from the settings - the PA's
+// cut-out limit is not part of the status message, so it has to be maintained
+// by hand.
 const TMIN=20,TMAX=80;
 let TWARN=50,THIGH=60;
-// Die PA kann auch in Fahrenheit melden - dann muessen Einheit und
-// Skalenbeschriftung mitgehen, die Zonen bleiben dieselben Temperaturen.
+// The PA can report in Fahrenheit - unit and scale labels then have to follow,
+// while the zones stay the same temperatures.
 let tempF=false;
 let FW=(TWARN-TMIN)/(TMAX-TMIN), FH=(THIGH-TMIN)/(TMAX-TMIN);
 
-// Spannungsgrenzen sind Defaults bzw. Einstellbereiche aus dem Manual:
-// Unterspannung 11,00 V, Vorwarnung 11,20 V, Ueberspannung ab 14,00 V
-// einstellbar mit Default 14,80 V, Nennspannung 13,80 V. Steht am Geraet
-// etwas anderes eingestellt, hier anpassen.
+// Voltage limits are defaults and adjustment ranges from the manual:
+// under-voltage 11.00 V, pre-limit 11.20 V, over-voltage adjustable from
+// 14.00 V with a default of 14.80 V, nominal 13.80 V. If the unit is set
+// differently, adjust here.
 const VMIN=10.0,VMAX=15.5,VUV=11.0,VPRE=11.2,VOVA=14.0,VOV=14.8;
 const vf=function(x){return (x-VMIN)/(VMAX-VMIN)};
 
-// Der 24-A-Trip (MAX4373) ist laut Manual auch beim geraeteeigenen
-// Zeigerinstrument der Vollausschlag. Die Warnzonen bei 80 % und 90 % davon
-// sind abgeleitet - das Manual nennt nur den Trip selbst.
+// Per the manual the 24 A trip (MAX4373) is also full scale on the unit's own
+// meter. The warning zones at 80 % and 90 % of it are derived - the manual
+// names only the trip itself.
 const ITRIP=24,IW1=.8,IW2=.9;
 
 function buildGauges(){
@@ -477,7 +477,7 @@ function buildGauges(){
           "A",[[0,"0"],[.5,"12"],[1,"24"]]);
 }
 
-// --- Bedienelemente -------------------------------------------------------
+// --- Controls -------------------------------------------------------------
 BANDS.forEach(function(b){const e=document.createElement("button");e.textContent=b[1];
 e.dataset.b=b[0];e.onclick=function(){send("band",b[0])};$("bands").appendChild(e)});
 for(let g=1;g<=4;g++){const e=document.createElement("button");e.textContent="G"+g;
@@ -490,13 +490,13 @@ $("bOp").onclick=function(){send("operate",1)};
 $("bSb").onclick=function(){send("operate",0)};
 $("bClr").onclick=function(){send("clear",0)};
 $("ab").onclick=function(){send("autoband",st.autoband?0:1)};
-// "Auto" = =A. "Manuell" hat kein eigenes Kommando - die Firmware schickt
-// dafuer das Band, auf dem die PA schon steht.
+// "Auto" = =A. "Manual" has no command of its own - for that the firmware
+// sends the band the PA is already on.
 $("bSelM").onclick=function(){send("bandsel",0)};
 $("bSelA").onclick=function(){send("bandsel",1)};
 $("tcien").onclick=function(e){e.currentTarget.classList.toggle("on")};
-// Sofort wirksam statt ueber das Formular: diese Felder stehen ausserhalb
-// davon und wurden beim Speichern gar nicht mitgeschickt.
+// Effective at once instead of via the form: these fields sit outside it and
+// were not submitted when saving at all.
 function liveSwitch(id,cmd){
   $(id).onclick=function(e){
     const on=!e.currentTarget.classList.contains("on");
@@ -507,7 +507,7 @@ function liveSwitch(id,cmd){
 liveSwitch("otastby","otastby");
 liveSwitch("tempalarm","tempalarm");
 liveSwitch("swralarm","swralarm");
-// als Zehntel senden, damit der Befehl ganzzahlig bleibt
+// send as tenths so the command stays integral
 ["swrwarn","swrhigh"].forEach(function(id){
   $(id).onchange=function(){
     const v=Math.round(parseFloat(this.value.replace(",","."))*10);
@@ -546,8 +546,8 @@ fetch("/api/config",{method:"POST",body:new URLSearchParams(f)})
 $("bFw").onclick=function(){const f=$("fw").files[0];
 if(!f){$("fwSt").textContent=t("noFile");return}
 const fd=new FormData();fd.append("firmware",f,f.name);
-// Erst den geschuetzten GET - dann fragt der Browser die Zugangsdaten ab,
-// bevor die Datei laeuft, und nicht hinterher nochmal.
+// The protected GET first - then the browser asks for credentials before the
+// file is sent, rather than again afterwards.
 $("fwSt").textContent=t("auth");
 fetch("/update",{method:"GET",credentials:"include"}).then(function(r){
 if(!r.ok){$("fwSt").textContent=t("upErr",r.status);return}
@@ -559,11 +559,11 @@ x.onload=function(){$("fwSt").textContent=x.status==200?t("upOk"):t("upErr",x.st
 x.onerror=function(){$("fwSt").textContent=t("upAbort")};x.send(fd);
 }).catch(function(){$("fwSt").textContent=t("upAbort")})};
 
-// --- Alarm melden ---------------------------------------------------------
-// Die PA piepst nur vor Ort. Die Notification-API gibt es ausserdem nur im
-// "secure context" (HTTPS oder localhost) - ueber http:// auf eine LAN-IP ist
-// sie im Browser gar nicht vorhanden. Deshalb ist der Ton in der Seite die
-// Basis, Notifications kommen nur obendrauf, wenn der Browser sie hergibt.
+// --- Raising alarms -------------------------------------------------------
+// The PA only beeps locally. The Notification API is moreover restricted to a
+// "secure context" (HTTPS or localhost) - over http:// to a LAN address the
+// browser does not offer it at all. So the tone inside the page is the base,
+// and notifications come on top only where the browser allows them.
 let ac=null,beepT=null,titleT=null,muted=false,lastAl=0,lastHot=0,lastBad=0,tCelCur=0;
 const origTitle=document.title;
 let sound=localStorage.getItem("sound")!=="0";
@@ -573,7 +573,7 @@ function audio(){
   if(ac.state==="suspended")ac.resume();
   return ac;
 }
-// Zwei kurze Toene, wie der Piepser der PA
+// Two short tones, like the PA's own beeper
 function beep(){
   if(!sound||muted)return;
   const c=audio(); if(!c)return;
@@ -626,9 +626,9 @@ $("snd").onclick=function(e){
   if(sound)beep();
 };
 function notifyStatus(){
-  // Chrome behaelt das Notification-Objekt auch auf http:// und setzt die
-  // Berechtigung stillschweigend auf "denied". Das sieht aus, als haette der
-  // Nutzer abgelehnt - deshalb den echten Grund abfragen und die Taste sperren.
+  // Chrome keeps the Notification object on http:// as well and silently sets
+  // the permission to "denied". That looks as if the user had refused - so ask
+  // for the real reason and disable the button.
   const insecure=!window.isSecureContext;
   $("bNotify").disabled = insecure || !("Notification" in window);
   if(!("Notification" in window)||insecure){$("notifySt").textContent=t("notifyNo");return}
@@ -644,10 +644,10 @@ $("bNotify").onclick=function(){
 
 function send(c,v){if(ws&&ws.readyState==1)ws.send(c+":"+v)}
 
-// --- Sprache --------------------------------------------------------------
+// --- Language -------------------------------------------------------------
 function setLang(l){lang=l;localStorage.setItem("lang",l);applyLang()}
 
-// "" = dem System folgen
+// "" = follow the system
 let theme=localStorage.getItem("theme")||"";
 function applyTheme(){
   if(theme)document.documentElement.setAttribute("data-theme",theme);
@@ -685,9 +685,9 @@ function applyLang(){
   if(st.raw!==undefined)render(st);
 }
 
-// --- Zustand anzeigen -----------------------------------------------------
-// Nur echte Hindernisse werden als Warnung eingefaerbt - "Automatik aus" oder
-// "Band folgt TCI" sind Zustandsinfos, keine Probleme.
+// --- Rendering the state --------------------------------------------------
+// Only genuine obstacles are coloured as a warning - "automatic off" or "band
+// follows TCI" are state information, not problems.
 const NWARN={tcidis:1,tcinofreq:1,unsupported:1,paoff:1,selstuck:1};
 function noteText(s){
   if(!s.note)return "";
@@ -744,20 +744,18 @@ if(s.online){
   setGauge($("gAmp"),0,"-",C.off);$("gAmpS").innerHTML="&nbsp;";
 }
 
-// In Automatik bestimmt die PA das Band per F-Sense selbst und kann damit
-// gegen unsere =Bn arbeiten - das ist nur ein Problem, wenn TCI-Bandwahl laeuft.
+// In automatic mode the PA picks the band itself via F-Sense and can thus work
+// against our =Bn - a problem only while TCI band select is running.
 $("bSelM").className="hbtn"+(s.online&&!s.autoSel?" act":"");
 $("bSelA").className="hbtn"+(s.online&&s.autoSel?" act":"");
-// Bei aktiver TCI-Bandwahl bestimmt der ESP32 das Band - eine Umschaltung
-// waere beim naechsten =Bn sofort wieder weg.
+// With TCI band select active the ESP32 determines the band - a change here
+// would be undone by the next =Bn straight away.
 const locked=s.autoband||!s.online;
 $("bSelM").disabled=locked;$("bSelA").disabled=locked;
 const conflict=s.online&&s.autoSel&&s.autoband;
 $("aselSub").textContent=conflict?t("selConflict"):(s.autoband?t("selLocked"):"");
 $("aselSub").style.color=conflict?C.warn:"var(--dim)";
-// Welche Stufe aktiv ist, zeigen die G-Tasten in der linken Spalte - hier
-// interessiert nur der Wert.
-// Welche Stufe aktiv ist, zeigen die G-Tasten - hier nur der Wert
+// Which step is active is shown by the G buttons - only the value here
 $("gnow").textContent=s.online&&s.gain?[6,4,2,0][s.gain-1]+" dB":"-";
 
 $("bandNow").textContent=s.bandName;
@@ -769,10 +767,10 @@ document.querySelectorAll("#alarms div").forEach(function(d){
 const hit=(s.alarms&+d.dataset.m)!==0;
 d.className=hit?"hit":"";d.firstChild.style.background=hit?C.bad:C.sw});
 
-// Die PA setzt ihr Alarmbit erst beim Abschalten - dann ist es zu spaet.
-// Deshalb warnt das Dashboard schon an der eigenen Schwelle.
+// The PA raises its alarm bit only when shutting down - by then it is too
+// late. So the dashboard warns at a threshold of its own.
 const hot=(s.tempAlarm&&s.online&&tCelCur>=TWARN)?s.temp:0;
-// SWR ist nur beim Senden aussagekraeftig - im Empfang meldet die PA 0.0
+// SWR only means anything while transmitting - on receive the PA reports 0.0
 const bad=(s.swrAlarm&&s.online&&s.swr>0&&s.swr>=SWRWARN)?s.swr:0;
 if(s.alarms||hot||bad){
   alarmOn(s.alarms,hot,bad);
@@ -802,18 +800,18 @@ if(!$("panel").classList.contains("on")){
   $("swrhigh").value=(s.swrHigh||0).toFixed(1)}}
 
 applyLang();
-// Ein stehengebliebenes Dashboard mit alten Werten sieht aus wie ein Hänger -
-// deshalb sagt die Seite deutlich, wenn die Verbindung weg ist.
+// A dashboard stuck on old values looks like a hang - so the page says
+// clearly when the connection is gone.
 function setLink(on){
   $("off").className="offline"+(on?"":" on");
   document.body.classList.toggle("off",!on);
   if(!on)$("off").textContent=t("wsLost");
 }
-// Der Server kann aufhoeren zu senden, ohne die Verbindung zu schliessen -
-// dann kommt kein onclose, und die Seite haelt stumm den letzten Stand fest:
-// gruener Punkt, alte Frequenz, alles eingefroren. Von aussen sieht das aus
-// wie ein haengendes Interface. Deshalb ein eigener Wachhund: bleiben die
-// Aktualisierungen aus, gilt die Verbindung als tot.
+// The server can stop sending without closing the connection - then no
+// onclose arrives and the page silently holds the last state: green dot, old
+// frequency, everything frozen. From the outside that looks like a hung
+// interface. Hence a watchdog of our own: if updates stop arriving, the
+// connection counts as dead.
 let lastMsg=0,wdT=null;
 const WD_MS=4000;                    // acht ausgebliebene Aktualisierungen
 function conn(){

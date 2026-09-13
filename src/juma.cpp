@@ -5,8 +5,8 @@
 
 Juma juma;
 
-// Kommandos und Statusantworten sind mit 0x0A 0x0D terminiert - also LF vor CR,
-// nicht die uebliche Reihenfolge. Manual: "=[Command][Parameter]\n\r".
+// Commands and status replies are terminated with 0x0A 0x0D - LF before CR,
+// not the usual order. Manual: "=[Command][Parameter]\n\r".
 static const char* TERM = "\n\r";
 
 void Juma::begin() {
@@ -18,11 +18,11 @@ bool Juma::online() const {
     return st_.valid && (millis() - st_.lastRxMs) < STALE_AFTER_MS;
 }
 
-// --- Senden ---------------------------------------------------------------
+// --- Sending --------------------------------------------------------------
 
 bool Juma::enqueue(const char* cmd) {
     uint8_t next = (uint8_t)((qTail_ + 1) % QN);
-    if (next == qHead_) return false;             // Queue voll
+    if (next == qHead_) return false;             // queue full
     strncpy(q_[qTail_], cmd, QL - 1);
     q_[qTail_][QL - 1] = '\0';
     qTail_ = next;
@@ -42,8 +42,8 @@ void Juma::pumpQueue() {
 
 bool Juma::send(const char* cmd)        { return enqueue(cmd); }
 
-// Umgeht die Queue und das CMD_GAP. Fuer Faelle, in denen loop() danach nicht
-// mehr laeuft - etwa kurz vor einem OTA-Update.
+// Bypasses the queue and CMD_GAP. For cases where loop() will not run
+// afterwards - such as just before an OTA update.
 void Juma::sendNow(const char* cmd) {
     Serial2.print(cmd);
     Serial2.print(TERM);
@@ -67,7 +67,7 @@ bool Juma::setGain(uint8_t n) {
     return enqueue(c);
 }
 
-// --- Empfangen ------------------------------------------------------------
+// --- Receiving ------------------------------------------------------------
 
 void Juma::loop() {
     pumpQueue();
@@ -85,10 +85,10 @@ void Juma::loop() {
                 parseLine(buf_);
                 len_ = 0;
             }
-            continue;                              // das zweite Terminatorzeichen
+            continue;                              // the second terminator byte
         }
         if (len_ < sizeof(buf_) - 1) buf_[len_++] = c;
-        else len_ = 0;                              // Ueberlauf: Zeile verwerfen
+        else len_ = 0;                              // overflow: drop the line
     }
 
     if (millis() - lastPoll_ >= POLL_INTERVAL_MS) {

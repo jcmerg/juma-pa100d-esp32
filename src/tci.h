@@ -1,11 +1,11 @@
 #pragma once
 #include <Arduino.h>
 
-// TCI-Client (Transceiver Control Interface). Spricht jede SDR-Software, die
-// TCI anbietet - ExpertSDR2/3, deskHPSDR und andere.
-// Textprotokoll ueber WebSocket, Nachrichten mit ';' terminiert, z.B.
+// TCI client (Transceiver Control Interface). Talks to any SDR software that
+// offers TCI - ExpertSDR2/3, deskHPSDR and others.
+// Text protocol over WebSocket, messages terminated with ';', e.g.
 //   vfo:0,0,14074000;   trx:0,true;   dds:0,14000000;   if:0,0,74000;
-// Liefert QRG und TX-Zustand; die Bandlogik sitzt in main.cpp.
+// Provides frequency and TX state; the band logic lives in main.cpp.
 class TciClient {
 public:
     void begin();
@@ -19,11 +19,11 @@ public:
     uint16_t port()  const { return port_; }
 
     uint32_t freqHz()    const { return freq_; }
-    uint32_t freqSetAt() const { return freqAt_; }   // millis der letzten Aenderung
+    uint32_t freqSetAt() const { return freqAt_; }   // millis of the last change
     bool     tx()        const { return tx_; }
 
     uint32_t rxMsgs() const { return msgs_; }
-    uint32_t drops()  const { return drops_; }   // Verbindungsabbrueche
+    uint32_t drops()  const { return drops_; }   // connection drops
 
 private:
     void onText(uint8_t* payload, size_t len);

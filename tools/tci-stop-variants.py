@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Probiert waehrend eines TX nacheinander Kommandos durch, die den Sender
-stoppen koennten, und meldet welches wirkt.
+"""Try, during a TX, a series of commands that might stop the transmitter and
+report which one works.
 
-Sendet nie etwas, das TX EINschaltet. 'tx_enable' wird am Ende immer wieder
-auf true gesetzt, damit der Funk hinterher normal sendebereit ist.
+Never sends anything that turns TX ON. 'tx_enable' is always set back to true
+at the end so the radio is ready to transmit normally afterwards.
 """
 import base64, os, socket, struct, sys, time
 
@@ -47,35 +47,35 @@ def refresh():
         if c.lower().startswith("trx:"):
             tx = "true" in c.lower()
 
-print("Warte bis zu %.0f s auf TX - bitte tasten und GEDRUECKT HALTEN." % wait, flush=True)
+print("Waiting up to %.0f s for TX - key up and HOLD." % wait, flush=True)
 t0 = time.time()
 while time.time() - t0 < wait and not tx:
     refresh(); time.sleep(0.1)
 
 if not tx:
-    print("Kein TX gesehen."); s.close(); sys.exit(2)
+    print("No TX seen."); s.close(); sys.exit(2)
 
-print("TX erkannt.", flush=True)
+print("TX detected.", flush=True)
 winner = None
 try:
     for cmd in CANDIDATES:
-        print("  probiere %-22s" % cmd, end="", flush=True)
+        print("  trying %-22s" % cmd, end="", flush=True)
         send(cmd)
         t1 = time.time()
         while time.time() - t1 < 2.5:
             refresh()
             if not tx:
-                print(" -> SENDER FAELLT AB", flush=True); winner = cmd; break
+                print(" -> TRANSMITTER DROPS", flush=True); winner = cmd; break
             time.sleep(0.1)
         if winner: break
-        print(" -> keine Wirkung", flush=True)
+        print(" -> no effect", flush=True)
 finally:
-    send("tx_enable:0,true;")          # immer zuruecksetzen
+    send("tx_enable:0,true;")          # always restore
     time.sleep(0.4)
 
 print()
-if winner: print("ERGEBNIS: '%s' stoppt den Sender." % winner)
-else:      print("ERGEBNIS: keines der Kommandos stoppt ein lokal getastetes TX.")
-print("tx_enable wurde wieder auf true gesetzt.")
+if winner: print("RESULT: '%s' stops the transmitter." % winner)
+else:      print("RESULT: none of the commands stops a locally keyed TX.")
+print("tx_enable has been set back to true.")
 s.close()
 sys.exit(0 if winner else 1)

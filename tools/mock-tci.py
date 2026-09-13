@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Minimaler TCI-Server zum Testen des ESP32-Clients ohne echte SDR-Software.
+"""Minimal TCI server for testing the ESP32 client without real SDR software.
 
-Spricht genug WebSocket, um den Handshake und Textframes zu bedienen, und
-schickt eine realistische TCI-Begruessung plus vfo/trx-Nachrichten.
+Speaks just enough WebSocket to serve the handshake and text frames, and sends
+a realistic TCI greeting plus vfo/trx messages.
 
     ./tools/mock-tci.py [port] [freq_hz ...]
 """
@@ -53,7 +53,7 @@ def handshake(sock):
     return True
 
 def reader(sock):
-    """Frames des Clients wegraeumen, damit nichts blockiert."""
+    """Drain the client's frames so nothing blocks."""
     try:
         while True:
             h = sock.recv(2)
@@ -84,16 +84,16 @@ def main():
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     srv.bind(("0.0.0.0", port))
     srv.listen(4)
-    print("Mock-TCI hoert auf 0.0.0.0:%d" % port, flush=True)
+    print("mock TCI listening on 0.0.0.0:%d" % port, flush=True)
 
     while True:
         sock, addr = srv.accept()
-        print("Verbindung von %s:%d" % addr, flush=True)
+        print("connection from %s:%d" % addr, flush=True)
         if not handshake(sock):
-            print("  Handshake fehlgeschlagen", flush=True)
+            print("  handshake failed", flush=True)
             sock.close()
             continue
-        print("  WebSocket offen", flush=True)
+        print("  WebSocket open", flush=True)
         threading.Thread(target=reader, args=(sock,), daemon=True).start()
         try:
             for g in GREETING:
@@ -109,7 +109,7 @@ def main():
                 time.sleep(5)
                 ws_send(sock, "vfo:0,0,%d;" % freqs[-1])
         except OSError as e:
-            print("  Verbindung weg: %s" % e, flush=True)
+            print("  connection gone: %s" % e, flush=True)
         finally:
             sock.close()
 

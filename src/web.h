@@ -2,28 +2,28 @@
 #include <Arduino.h>
 
 struct Settings {
-    String   hostname;   // Netzname fuer WLAN, mDNS und OTA
+    String   hostname;   // network name for Wi-Fi, mDNS and OTA
     String   ssid;
     String   pass;
     String   tciHost;
     uint16_t tciPort  = 40001;
     bool     tciEn    = false;
-    bool     autoband = false;   // nach Reset aus: fail-safe
-    bool     otaStandby = true;  // vor einem Firmware-Update "=S" an die PA
-    // Temperaturwarnung. Das Alarmbit der PA kommt erst beim Abschalten - dann
-    // ist es zu spaet. Diese Schwellen sind Werte des Dashboards; die echte
-    // Abschaltgrenze der PA steht nicht in der Statusmeldung.
-    uint8_t  tempWarn  = 50;     // Grad C: ab hier Warnung (Ton und Banner)
-    uint8_t  tempHigh  = 60;     // Grad C: ab hier rot in der Anzeige
-    bool     tempAlarm = true;   // Warnung ueberhaupt ausloesen
+    bool     autoband = false;   // off after reset: fail-safe
+    bool     otaStandby = true;  // send "=S" before a firmware update
+    // Temperature warning. The PA raises its alarm bit only when it shuts
+    // down - by then it is too late. These thresholds belong to the dashboard;
+    // the PA's real cut-out limit is not part of the status message.
+    uint8_t  tempWarn  = 50;     // deg C: warn from here (tone and banner)
+    uint8_t  tempHigh  = 60;     // deg C: red in the gauge from here
+    bool     tempAlarm = true;   // raise the warning at all
 
-    // Dasselbe fuer das SWR. Die Abschaltgrenze der PA (Werksvorgabe 3.0,
-    // einstellbar 1.0-10.0) steht ebenfalls nicht in der Statusmeldung.
-    uint8_t  swrWarnX10  = 20;   // 2.0 - ab hier Warnung
-    uint8_t  swrHighX10  = 25;   // 2.5 - ab hier rot in der Anzeige
+    // The same for SWR. The PA's trip limit (factory default 3.0, adjustable
+    // 1.0-10.0) is likewise absent from the status message.
+    uint8_t  swrWarnX10  = 20;   // 2.0 - warn from here
+    uint8_t  swrHighX10  = 25;   // 2.5 - red in the gauge from here
     bool     swrAlarm    = true;
 
-    bool     tciLostAuto = false;// bei TCI-Verlust "=A": PA waehlt wieder selbst
+    bool     tciLostAuto = false;// on TCI loss send "=A": the PA selects again
 };
 
 extern Settings cfg;
@@ -34,15 +34,15 @@ void settingsLoad();
 void settingsSave();
 
 void webBegin();
-uint8_t webClients();   // verbundene Dashboard-Browser
+uint8_t webClients();   // connected dashboard browsers
 void webLoop();
 
-// Hinweis fuer das Dashboard. Uebertragen wird nur ein Code plus optionales
-// Argument - die Uebersetzung passiert im Browser, damit die Sprachumschaltung
-// nicht an in der Firmware festgetackerten Texten scheitert.
-//   ""            kein Hinweis
-//   "unsupported" Band wird von der PA nicht abgedeckt   (arg = Bandname)
-//   "bandset"     Band umgeschaltet                      (arg = Bandname)
-//   "abon"/"aboff" TCI-Bandwahl ein/aus
-//   "tciauto"     TCI weg, PA auf eigene Bandwahl zurueckgestellt
+// Hint for the dashboard. Only a code plus an optional argument travels over
+// the wire - the translation happens in the browser, so switching the UI
+// language does not trip over text hard-coded in the firmware.
+//   ""             no hint
+//   "unsupported"  band not covered by the PA            (arg = band name)
+//   "bandset"      band switched                         (arg = band name)
+//   "abon"/"aboff" TCI band select on/off
+//   "tciauto"      TCI gone, PA put back on its own band select
 void webSetNote(const char* code, const char* arg = "");

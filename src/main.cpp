@@ -1,11 +1,12 @@
-// JUMA PA-100D Controller auf ESP32.
+// JUMA PA-100D controller on an ESP32.
 //
-//   - RS-232 zur PA ueber MAX3232 an UART2 (115200 8N1, Kommandos "=X\n\r")
-//   - Web-Dashboard per WLAN (HTTP :80, WebSocket :81)
-//   - Bandwahl per TCI-Client (ExpertSDR, deskHPSDR, Thetis)
+//   - RS-232 to the PA via MAX3232 on UART2 (115200 8N1, commands "=X\n\r")
+//   - web dashboard over Wi-Fi (HTTP :80, WebSocket :81)
+//   - band selection via a TCI client (ExpertSDR, deskHPSDR, Thetis)
 //
-// OPERATE/STANDBY kommt strikt aus dem Geraetestatus, gesendet wird explizit
-// =O oder =S statt eines Toggles - so muss der Zustand nie erraten werden.
+// OPERATE/STANDBY is taken strictly from the device status, and we send an
+// explicit =O or =S instead of a toggle - so the state never has to be
+// guessed.
 #include <Arduino.h>
 #include <WiFi.h>
 #include <ESPmDNS.h>
@@ -21,17 +22,17 @@
 static uint32_t lastBandCmd  = 0;
 
 // ---------------------------------------------------------------------------
-// WLAN-Ueberwachung
+// Wi-Fi supervision
 // ---------------------------------------------------------------------------
 static uint32_t wifiLastOk   = 0;
 static uint32_t wifiRetryAt  = 0;
 static uint32_t wifiCheckAt  = 0;
 static uint32_t wifiDrops_   = 0;
 static uint32_t wifiRoams_   = 0;
-static uint32_t wifiWeakAt   = 0;     // seit wann ist der Pegel schlecht?
+static uint32_t wifiWeakAt   = 0;     // since when has the signal been poor?
 static uint32_t wifiRoamAt   = 0;
 static bool     wifiWasUp    = false;
-static float    rssiAvg      = 0;     // gleitender Mittelwert
+static float    rssiAvg      = 0;     // moving average
 
 uint32_t wifiDropCount() { return wifiDrops_; }
 uint32_t wifiRoamCount() { return wifiRoams_; }
@@ -44,18 +45,18 @@ static void wifiSupervise() {
     if (millis() - wifiCheckAt < WIFI_CHECK_MS) return;
     wifiCheckAt = millis();
 
-    // Ohne konfigurierte SSID ist der AP-Modus der gewollte Zustand.
+    // Without a configured SSID, AP mode is the intended state.
     if (!cfg.ssid.length()) return;
 
     if (WiFi.status() == WL_CONNECTED) {
-        if (!wifiWasUp) log_i("WLAN wieder da: %s", WiFi.localIP().toString().c_str());
+        if (!wifiWasUp) log_i("Wi-Fi back: %s", WiFi.localIP().toString().c_str());
         wifiWasUp  = true;
         wifiLastOk = millis();
 
-        // Gleitender Mittelwert statt Momentanwert: der RSSI schwankt um
-        // 10 dB und mehr. Mit dem Momentanwert setzt jede einzelne gute
-        // Messung den Timer zurueck, und die Bedingung "60 s durchgehend
-        // schlecht" wird nie erreicht - der Wechsel feuert dann nie.
+        // Moving average instead of the instantaneous value: RSSI swings by
+        // 10 dB and more. With the instantaneous value every single good
+        // sample resets the timer, so the condition "poor for 60 s straight"
+        // is never met and the AP switch never fires.
         const int32_t r = WiFi.RSSI();
         rssiAvg = rssiAvg ? (rssiAvg * 0.8f + (float)r * 0.2f) : (float)r;
 
@@ -64,9 +65,9 @@ static void wifiSupervise() {
         if (millis() - wifiWeakAt < WIFI_ROAM_HOLD_MS) return;
         if (millis() - wifiRoamAt < WIFI_ROAM_MIN_GAP) return;
 
-        // Neu verbinden. Die Suche oben nimmt den staerksten AP - das kann
-        // derselbe sein, dann war es ein Versuch, mehr nicht.
-        log_w("RSSI im Mittel %d dBm seit %lu s - suche staerkeren AP",
+        // Reconnect. The scan configured above picks the strongest AP - that
+        // may well be the same one, in which case it was merely an attempt.
+        log_w("RSSI averaging %d dBm for %lu s - looking for a stronger AP",
               (int)rssiAvg, (unsigned long)((millis() - wifiWeakAt) / 1000));
         wifiRoams_++;
         wifiRoamAt = millis();
@@ -77,63 +78,62 @@ static void wifiSupervise() {
         return;
     }
 
-    if (wifiWasUp) { wifiDrops_++; wifiWasUp = false; log_w("WLAN weg"); }
+    if (wifiWasUp) { wifiDrops_++; wifiWasUp = false; log_w("Wi-Fi lost"); }
 
     if (WiFi.getMode() == WIFI_STA && millis() - wifiRetryAt > WIFI_RETRY_MS) {
         wifiRetryAt = millis();
-        // Neu verbinden statt reconnect(): reconnect() nimmt den zuletzt
-        // benutzten AP, begin() sucht mit den Einstellungen oben den staerksten.
+        // begin() rather than reconnect(): reconnect() takes the AP last
+        // used, begin() scans and picks the strongest one.
         WiFi.disconnect();
         WiFi.begin(cfg.ssid.c_str(), cfg.pass.c_str());
     }
 
-    // Kommt es laenger nicht zurueck, hilft nur ein Neustart - unerreichbar
-    // nuetzt das Geraet niemandem, und ein Neustart versucht es sauber neu.
+    // If it does not come back for a long time, only a reboot helps - an
+    // unreachable device is no use to anyone, and a reboot starts over cleanly.
     if (millis() - wifiLastOk > WIFI_REBOOT_AFTER_MS) {
-        log_e("WLAN seit %lu s weg - Neustart", (unsigned long)wifiDownSecs());
+        log_e("Wi-Fi gone for %lu s - rebooting", (unsigned long)wifiDownSecs());
         Serial.flush();
         delay(100);
         ESP.restart();
     }
 }
 static uint32_t tciLostAt    = 0;
-static uint8_t  autoSelTries = 0;       // Versuche, die PA auf A zu holen
+static uint8_t  autoSelTries = 0;       // attempts to put the PA back on A
 static uint32_t lastAutoSel  = 0;
 static bool     paWasOnline  = false;
-static uint32_t lastForceM   = 0;       // letzter Versuch, die PA nach M zu holen
+static uint32_t lastForceM   = 0;       // last attempt to force the PA to M
 static uint8_t  forceMTries  = 0;
 
 // ---------------------------------------------------------------------------
-// Automatische Bandwahl: TCI-QRG -> "=Bn"
+// Automatic band selection: TCI frequency -> "=Bn"
 // ---------------------------------------------------------------------------
 static void bandControl() {
     const JumaStatus& s = juma.status();
 
-    // Der Hinweis im Dashboard zeigt immer den AKTUELLEN Grund, nicht ein
-    // einmaliges Ereignis - sonst steht nach dem Umschalten eine veraltete
-    // Meldung da, und direkt nach dem Start gar keine.
+    // The hint in the dashboard always shows the CURRENT reason, never a
+    // one-off event - otherwise a stale message lingers after a change, and
+    // right after start-up there is none at all.
     if (!cfg.autoband)     { webSetNote("aboff");     return; }
     if (!tci.enabled())    { webSetNote("tcioff");    return; }
-    // Kommt die PA neu hoch, steht ihre Bandwahl moeglicherweise wieder auf M.
-    // Dann darf der Fallback erneut greifen - sonst haette ein Aus- und
-    // Einschalten der PA ihn dauerhaft stillgelegt.
+    // When the PA comes back up its band select may well be on M again. The
+    // fallback must then be allowed to act once more - otherwise switching the
+    // PA off and on would disable it for good.
     if (juma.online() != paWasOnline) {
         paWasOnline = juma.online();
         if (paWasOnline) autoSelTries = 0;
     }
 
     if (!tci.connected()) {
-        // '=Bn' ist laut Manual eine MANUELLE Bandwahl - die PA springt dabei
-        // von A nach M und bleibt bei einem TCI-Ausfall deshalb auf dem
-        // zuletzt kommandierten Band stehen. '=A' gibt ihr die automatische
-        // Bandwahl zurueck; welche Methode sie dann nutzt (F-Sense, FT-817,
-        // CAT, ...), steht in ihrer eigenen Konfiguration.
+        // Per the manual '=Bn' is a MANUAL band selection - it moves the PA
+        // from A to M, so after losing TCI it stays on the last commanded
+        // band. '=A' gives it automatic band selection back; which method it
+        // then uses (F-Sense, FT-817, CAT, ...) is set in its own config.
         if (!tciLostAt) tciLostAt = millis();
         const bool grace = (millis() - tciLostAt >= TCI_LOST_GRACE_MS);
 
-        // Am Zustand ausgerichtet, nicht an einem Ereignis: solange die PA
-        // trotz fehlendem TCI auf M steht, wird nachgefasst - begrenzt, damit
-        // eine bewusste Wahl am Geraet nicht endlos ueberstimmt wird.
+        // Driven by state, not by an event: as long as the PA sits on M
+        // while TCI is missing we keep trying - bounded, so a deliberate
+        // choice made at the unit is not overridden forever.
         if (cfg.tciLostAuto && grace && juma.online() && !s.tx && !s.autoSel &&
             autoSelTries < 3 && millis() - lastAutoSel >= 5000) {
             juma.setAutoSelect();
@@ -156,22 +156,22 @@ static void bandControl() {
     uint8_t target = bandFromHz(hz);
     if (target == BAND_NONE) { webSetNote("unsupported", bandNameFromHz(hz)); return; }
 
-    // Beruhigungszeit: erst senden, wenn die QRG stabil steht. Sonst feuert
-    // jedes Drehen ueber eine Bandgrenze ein Bandkommando.
+    // Settle time: only send once the frequency has stopped moving.
+    // Otherwise tuning across a band edge fires a band command every time.
     if (millis() - tci.freqSetAt() < BAND_SETTLE_MS) return;
 
-    // Niemals waehrend TX umschalten - weder laut TCI noch laut PA. Ohne
-    // Meldung: dass man beim Senden nicht das Band wechselt, ist selbstver-
-    // staendlich, und der Hinweis stand nur im Weg.
+    // Never switch during TX - neither per TCI nor per the PA. Without a
+    // hint: that you do not change bands while transmitting is self-evident,
+    // and the message was only in the way.
     if (tci.tx() || s.tx)  { return; }
     if (!juma.online())    { webSetNote("paoff");     return; }
 
     if (s.band == target) {
-        // Solange der ESP32 das Band bestimmt, darf die PA nicht gleichzeitig
-        // selbst waehlen - sonst zieht F-Sense sie irgendwann woanders hin.
-        // Ein '=Bn' auf das laufende Band holt sie von A nach M, ohne das Band
-        // zu aendern. Begrenzt oft versuchen: nimmt die PA es nicht an, wird
-        // gemeldet statt endlos gefeuert.
+        // While the ESP32 determines the band, the PA must not select one
+        // as well - otherwise F-Sense will eventually pull it elsewhere. A
+        // '=Bn' on the band already in use moves it from A to M without
+        // changing the band. Bounded retries: if the PA will not take it, we
+        // report instead of firing forever.
         if (s.autoSel) {
             if (forceMTries < 3 && millis() - lastForceM >= 5000) {
                 juma.setBand(target);
@@ -185,7 +185,7 @@ static void bandControl() {
         }
         return;
     }
-    if (millis() - lastBandCmd < 1000) return;      // nicht dauerfeuern
+    if (millis() - lastBandCmd < 1000) return;      // do not hammer it
 
     juma.setBand(target);
     lastBandCmd = millis();
@@ -198,10 +198,10 @@ static void wifiBegin() {
     WiFi.setHostname(cfg.hostname.c_str());
 
     if (cfg.ssid.length()) {
-        // Der Default ist WIFI_FAST_SCAN: damit nimmt der ESP32 den ERSTEN
-        // gefundenen Zugangspunkt der SSID, nicht den staerksten. Bei mehreren
-        // APs auf derselben SSID landet er so leicht auf dem schwaechsten -
-        // mit Paketverlust, der dann nach einem Firmwarefehler aussieht.
+        // The default is WIFI_FAST_SCAN, which makes the ESP32 take the
+        // FIRST access point it finds for the SSID, not the strongest. With
+        // several APs on one SSID it easily ends up on the weakest - with
+        // packet loss that then looks like a firmware fault.
         WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
         WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
         WiFi.begin(cfg.ssid.c_str(), cfg.pass.c_str());
@@ -210,18 +210,18 @@ static void wifiBegin() {
     }
 
     if (WiFi.status() != WL_CONNECTED) {
-        // Ohne WLAN einen eigenen AP aufspannen, damit das Web-UI zum
-        // Konfigurieren immer erreichbar ist.
+        // Without Wi-Fi, raise an AP of our own so the web UI stays
+        // reachable for configuration.
         WiFi.mode(WIFI_AP);
         WiFi.softAP(AP_SSID, AP_PASS);
-        log_w("Kein WLAN - AP '%s' auf %s", AP_SSID, WiFi.softAPIP().toString().c_str());
+        log_w("No Wi-Fi - AP '%s' on %s", AP_SSID, WiFi.softAPIP().toString().c_str());
     } else {
-        // NACH dem Verbinden - vorher gesetzt wird es von WiFi.begin() wieder
-        // verworfen. Mit Modem-Sleep wartet jeder Roundtrip auf das naechste
-        // Beacon (~100 ms); die 23-kB-Seite brauchte dadurch 6-20 s.
+        // AFTER connecting - set earlier, WiFi.begin() discards it again.
+        // With modem sleep every round trip waits for the next beacon
+        // (~100 ms); that made the 23 kB page take 6-20 s.
         WiFi.setSleep(false);
         wifiWasUp = true;
-        log_i("WLAN verbunden: %s, Sleep aus", WiFi.localIP().toString().c_str());
+        log_i("Wi-Fi connected: %s, sleep off", WiFi.localIP().toString().c_str());
     }
 }
 
@@ -234,19 +234,19 @@ void setup() {
     settingsLoad();
     juma.begin();
     wifiBegin();
-    // OTA: flashen ueber WLAN, damit am Verstaerker kein USB-Kabel mehr
-    // haengen muss. Vor dem Update die PA auf STANDBY - waehrend des Flashens
-    // laeuft loop() nicht, die PA wuerde ohnehin nach 5 s selbst zurueckfallen,
-    // aber so ist der Zustand definiert statt abgelaufen.
+    // OTA: flashing over Wi-Fi so no USB cable has to hang off the amplifier.
+    // Put the PA into STANDBY before the update - loop() does not run while
+    // flashing, and although the PA would fall back by itself after 5 s, this
+    // way the state is defined rather than merely expired.
     ArduinoOTA.setHostname(cfg.hostname.c_str());
     ArduinoOTA.setPassword(OTA_PASS);
     ArduinoOTA.onStart([]() {
         if (cfg.otaStandby) {
             juma.sendNow("=S");
-            Serial.println("OTA-Update startet, PA auf STANDBY");
+            Serial.println("OTA update starting, PA to STANDBY");
         }
     });
-    ArduinoOTA.onError([](ota_error_t e) { Serial.printf("OTA-Fehler %u\n", e); });
+    ArduinoOTA.onError([](ota_error_t e) { Serial.printf("OTA error %u\n", e); });
     ArduinoOTA.begin();
 
     if (MDNS.begin(cfg.hostname.c_str())) {
@@ -258,11 +258,11 @@ void setup() {
     tci.configure(cfg.tciHost, cfg.tciPort, cfg.tciEn);
     webBegin();
 
-    // Watchdog erst hier scharf schalten - der WLAN-Verbindungsversuch oben
-    // darf bis zu 15 s dauern.
-    esp_task_wdt_init(WDT_TIMEOUT_S, true);   // true = Reboot bei Ablauf
-    esp_task_wdt_add(NULL);                   // loopTask ueberwachen
-    Serial.printf("Watchdog aktiv (%lu s)\n", (unsigned long)WDT_TIMEOUT_S);
+    // Arm the watchdog only here - the Wi-Fi connection attempt above is
+    // allowed to take up to 15 s.
+    esp_task_wdt_init(WDT_TIMEOUT_S, true);   // true = reboot on expiry
+    esp_task_wdt_add(NULL);                   // watch loopTask
+    Serial.printf("Watchdog active (%lu s)\n", (unsigned long)WDT_TIMEOUT_S);
 
     wifiLastOk = millis();
     consoleBegin();

@@ -8,10 +8,10 @@ public:
     void loop();
 
     const JumaStatus& status() const { return st_; }
-    bool online() const;                 // Statusantwort frisch genug?
+    bool online() const;                 // status reply recent enough?
 
-    bool send(const char* cmd);          // in die Queue
-    void sendNow(const char* cmd);       // sofort, ohne Queue (OTA/Notfall)          // "=R" o.ae.; "\n\r" haengt der Treiber an
+    bool send(const char* cmd);          // into the queue
+    void sendNow(const char* cmd);       // at once, bypassing the queue (OTA)
     bool setBand(uint8_t n);             // 1..9
     bool setGain(uint8_t n);             // 1..4
     bool setOperate(bool on);            // =O / =S
@@ -22,13 +22,13 @@ public:
     uint32_t rxLines() const { return rxLines_; }
     uint32_t badLines() const { return badLines_; }
     uint32_t rxBytes() const { return rxBytes_; }
-    // Letzte empfangene Rohbytes als Hex - trennt "nichts kommt an" von
-    // "Bytes kommen an, aber Baudrate/Framing passt nicht".
+    // Last received raw bytes as hex - separates "nothing arrives" from
+    // "bytes arrive but baud rate or framing is wrong".
     void     hexTail(char* out, size_t cap) const;
     const char* lastSent() const { return lastSent_; }
 
 private:
-    static const uint8_t QN = 8;         // Kommando-Queue
+    static const uint8_t QN = 8;         // command queue
     static const uint8_t QL = 10;
 
     void parseLine(char* line);
