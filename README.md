@@ -632,6 +632,23 @@ Entwicklungs-Uploads nimmt es sonst jedes Mal die Betriebsart weg.
 
 ## Entwicklung
 
+Das Dashboard wird **gepackt ausgeliefert**. `tools/gzip_html.py` läuft als
+`pre:`-Schritt vor jedem Build, liest den Rohstring aus `src/index_html.h` und
+erzeugt `src/index_html_gz.h`. Bearbeitet wird also weiter nur die lesbare
+Datei; das erzeugte Byte-Array steht in der `.gitignore`.
+
+| | ungepackt | gzip |
+|---|---|---|
+| übertragen | 46,4 kB | **16,0 kB** (34 %) |
+| Seite laden | 0,24–0,27 s | **0,08–0,12 s** |
+| Flash | 81,7 % | **78,9 %** |
+
+Das lohnt doppelt: das Skript sitzt am Dokumentende und läuft erst, wenn alles
+angekommen ist. Bei schlechter Funklage stand die Seite vorher sekundenlang mit
+Rahmen da, aber ohne Tasten und Anzeigen — das sieht aus wie ein Hänger, ist
+aber nur eine halb geladene Seite.
+
+
 | Datei | Inhalt |
 |---|---|
 | `include/config.h` | Pins, Timings, Passwörter, `FW_VERSION` |
@@ -641,7 +658,8 @@ Entwicklungs-Uploads nimmt es sonst jedes Mal die Betriebsart weg.
 | `src/tci.h/.cpp` | TCI-Client, liefert QRG und TX-Zustand |
 | `src/web.h/.cpp` | HTTP + WebSocket-Server, Settings in NVS, OTA-Endpunkt |
 | `src/console.h/.cpp` | Konsole auf UART0 und Telnet :23 |
-| `src/index_html.h` | Dashboard, eine Datei, PROGMEM |
+| `src/index_html.h` | Dashboard, eine Datei — die einzige, die bearbeitet wird |
+| `tools/gzip_html.py` | packt es beim Bauen nach `src/index_html_gz.h` |
 | `src/main.cpp` | Bandcontroller, Watchdog, mDNS, Verdrahtung |
 | `tests/test_parse.cpp` | 102 Checks für Statusparser und Bandzuordnung |
 
