@@ -96,9 +96,10 @@ static void wifiSupervise() {
         ESP.restart();
     }
 }
-static bool     tciWasUp     = false;   // war TCI ueberhaupt schon mal da?
 static uint32_t tciLostAt    = 0;
-static bool     autoSelSent  = false;   // '=A' nach dem Verlust schon raus?
+static uint8_t  autoSelTries = 0;       // Versuche, die PA auf A zu holen
+static uint32_t lastAutoSel  = 0;
+static bool     paWasOnline  = false;
 static uint32_t lastForceM   = 0;       // letzter Versuch, die PA nach M zu holen
 static uint8_t  forceMTries  = 0;
 
@@ -113,6 +114,14 @@ static void bandControl() {
     // Meldung da, und direkt nach dem Start gar keine.
     if (!cfg.autoband)     { webSetNote("aboff");     return; }
     if (!tci.enabled())    { webSetNote("tcioff");    return; }
+    // Kommt die PA neu hoch, steht ihre Bandwahl moeglicherweise wieder auf M.
+    // Dann darf der Fallback erneut greifen - sonst haette ein Aus- und
+    // Einschalten der PA ihn dauerhaft stillgelegt.
+    if (juma.online() != paWasOnline) {
+        paWasOnline = juma.online();
+        if (paWasOnline) autoSelTries = 0;
+    }
+
     if (!tci.connected()) {
         // '=Bn' ist laut Manual eine MANUELLE Bandwahl - die PA springt dabei
         // von A nach M und bleibt bei einem TCI-Ausfall deshalb auf dem
@@ -120,19 +129,26 @@ static void bandControl() {
         // Bandwahl zurueck; welche Methode sie dann nutzt (F-Sense, FT-817,
         // CAT, ...), steht in ihrer eigenen Konfiguration.
         if (!tciLostAt) tciLostAt = millis();
-        bool due = cfg.tciLostAuto && tciWasUp && !autoSelSent &&
-                   (millis() - tciLostAt >= TCI_LOST_GRACE_MS) &&
-                   juma.online() && !s.tx;
-        if (due) {
+        const bool grace = (millis() - tciLostAt >= TCI_LOST_GRACE_MS);
+
+        // Am Zustand ausgerichtet, nicht an einem Ereignis: solange die PA
+        // trotz fehlendem TCI auf M steht, wird nachgefasst - begrenzt, damit
+        // eine bewusste Wahl am Geraet nicht endlos ueberstimmt wird.
+        if (cfg.tciLostAuto && grace && juma.online() && !s.tx && !s.autoSel &&
+            autoSelTries < 3 && millis() - lastAutoSel >= 5000) {
             juma.setAutoSelect();
-            autoSelSent = true;
+            lastAutoSel = millis();
+            autoSelTries++;
         }
-        webSetNote(autoSelSent ? "tciauto" : "tcidis");
+
+        if (s.autoSel)                       webSetNote("tciauto");
+        else if (cfg.tciLostAuto && grace && autoSelTries >= 3)
+                                             webSetNote("selstuck");
+        else                                 webSetNote("tcidis");
         return;
     }
-    tciWasUp    = true;
-    tciLostAt   = 0;
-    autoSelSent = false;
+    tciLostAt    = 0;
+    autoSelTries = 0;
 
     uint32_t hz = tci.freqHz();
     if (!hz)               { webSetNote("tcinofreq"); return; }

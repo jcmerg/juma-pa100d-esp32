@@ -430,9 +430,16 @@ Der Schalter **„Bei TCI-Verlust auf Automatik der PA"** (`tcilosta 1`) schickt
 Konfiguration der PA; steht sie dort auf `Manual`, bringt `=A` nichts.
 
 Die 15 s liegen bewusst über dem 5-s-Reconnect, damit ein kurzer Aussetzer die
-PA nicht umstellt. Gesendet wird einmal pro Abriss, nur wenn TCI vorher
-verbunden war, nur wenn die PA online ist und **nicht** während TX. Kommt TCI
-zurück, setzt das nächste `=Bn` die PA wieder auf `M`.
+PA nicht umstellt.
+
+Entscheidend ist der **Zustand**, nicht das Ereignis: solange TCI fehlt und die
+PA auf `M` steht, wird nachgefasst — höchstens dreimal im 5-s-Abstand, damit
+eine bewusste Wahl am Gerät nicht endlos überstimmt wird. Der Zähler beginnt
+neu, wenn die PA wieder hochkommt; sonst hätte ein Aus- und Einschalten der PA
+den Fallback dauerhaft stillgelegt, weil sie dabei auf `M` zurückfällt.
+
+Nicht gesendet wird während TX und solange die PA offline ist. Kommt TCI zurück,
+setzt das nächste `=Bn` die PA ohnehin wieder auf `M`.
 
 ### Zwei Fallstricke bei TCI
 
