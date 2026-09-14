@@ -578,11 +578,12 @@ to STANDBY by itself **5 s** after a remote `=O` when no more messages arrive
 | Console | `telnet juma-pa.local`, or `pio device monitor` over USB |
 | Flashing | `./tools/flash-wifi.sh` or the form in the dashboard |
 
-The PA link and the TCI client each run in a **task of their own**, guarded by
-a mutex. The PA leaves remote mode 5 s after the last command, so its 500 ms
-poll must not wait behind a web server that can block for seconds. The web
-server itself stays in the main loop; a long block there costs the dashboard
-its WebSocket, and the browser reconnects on its own.
+The PA link, the TCI client and the band logic each run in a **task of their
+own**, guarded by a mutex. The PA leaves remote mode 5 s after the last
+command, and a band change that arrives late puts the PA on the wrong band for
+the next transmission — neither may wait behind a web server that can block
+for seconds. The web server itself stays in the main loop; a long block there
+costs the dashboard its WebSocket, and the browser reconnects on its own.
 
 ### Console commands
 

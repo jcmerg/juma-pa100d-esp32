@@ -33,7 +33,13 @@ String sanitizeHostname(const String& in) {
 static WebServer       http(HTTP_PORT);
 static WebSocketsServer wsSrv(WS_PORT);
 static Preferences      prefs;
-static String           noteCode, noteArg;
+// Fixed buffers, not Strings: the note is written by the band task and read
+// by whoever builds the state. Two tasks on one heap-backed String is the one
+// kind of race worth avoiding outright; a short mutex around fixed storage
+// costs nothing here, the note changes only when the situation does.
+static char             noteCode[16] = "";
+static char             noteArg[12]  = "";
+static SemaphoreHandle_t noteMtx = nullptr;
 static uint32_t         lastPush = 0;
 
 // Fixed buffer instead of a String: the state goes out twice a second, and a
@@ -45,11 +51,15 @@ static size_t           stateLen = 0;
 
 
 void webSetNote(const char* code, const char* arg) {
-    // bandControl() calls this on every pass - without the comparison that
-    // would be needless String assignment on the heap.
-    if (noteCode == code && noteArg == arg) return;
-    noteCode = code;
-    noteArg  = arg;
+    // Called on every pass of the band task - compare first, write only on a
+    // real change.
+    if (!strcmp(noteCode, code) && !strcmp(noteArg, arg ? arg : "")) return;
+    if (noteMtx) xSemaphoreTake(noteMtx, portMAX_DELAY);
+    strncpy(noteCode, code, sizeof(noteCode) - 1);
+    noteCode[sizeof(noteCode) - 1] = '\0';
+    strncpy(noteArg, arg ? arg : "", sizeof(noteArg) - 1);
+    noteArg[sizeof(noteArg) - 1] = '\0';
+    if (noteMtx) xSemaphoreGive(noteMtx);
 }
 
 // --- Settings -------------------------------------------------------------
@@ -137,8 +147,13 @@ static void buildState() {
     d["swrAlarm"]  = cfg.swrAlarm;
     d["ssid"]    = cfg.ssid;
     d["hostname"] = cfg.hostname;
-    d["note"]    = noteCode;
-    d["noteArg"] = noteArg;
+    char nc[sizeof(noteCode)], na[sizeof(noteArg)];
+    if (noteMtx) xSemaphoreTake(noteMtx, portMAX_DELAY);
+    strcpy(nc, noteCode);
+    strcpy(na, noteArg);
+    if (noteMtx) xSemaphoreGive(noteMtx);
+    d["note"]    = nc;
+    d["noteArg"] = na;
     d["version"] = FW_VERSION;
 
     stateLen = serializeJson(d, stateJson, sizeof(stateJson));
@@ -292,6 +307,7 @@ static void onUpdateChunk() {
 }
 
 void webBegin() {
+    noteMtx = xSemaphoreCreateMutex();
     // authenticate() only reads the Authorization header when it is
     // collected. Core 2.0.x takes an array plus count, not variadic args.
     static const char* otaHeaders[] = { "Authorization" };

@@ -123,6 +123,13 @@ static uint8_t  forceMTries  = 0;
 // Automatic band selection: TCI frequency -> "=Bn"
 // ---------------------------------------------------------------------------
 static void bandControl() {
+    // The counterpart to the PA poll gap: if this task ever stops running,
+    // band changes stop with it, and that must not go unnoticed.
+    static uint32_t lastRun = 0;
+    if (dbgOn() && lastRun && millis() - lastRun > 1000)
+        dbg("band: %lu ms since the last pass", (unsigned long)(millis() - lastRun));
+    lastRun = millis();
+
     const JumaStatus s = juma.status();
 
     // The hint in the dashboard always shows the CURRENT reason, never a
@@ -331,6 +338,18 @@ void setup() {
 
     wifiLastOk = millis();
     consoleBegin();
+
+    // The band decision belongs with the PA and TCI tasks, not behind the web
+    // server: a blocked loop would delay a band change by as long as it is
+    // blocked, and a band change that arrives late means the PA is on the
+    // wrong band when the next transmission starts. It only reads state and
+    // drops commands into juma's queue, both of which are already locked.
+    xTaskCreatePinnedToCore([](void*) {
+        for (;;) {
+            bandControl();
+            vTaskDelay(pdMS_TO_TICKS(50));
+        }
+    }, "band", 3072, nullptr, 2, nullptr, 1);
 }
 
 // Loop timing, evaluated only while 'debug 1' is on. Everything - web server,
@@ -387,7 +406,6 @@ void loop() {
     PHASE("webLoop",           webLoop());
     PHASE("consoleLoop",       consoleLoop());
     PHASE("wifiSupervise",     wifiSupervise());
-    PHASE("bandControl",       bandControl());
     runS = millis() / 1000;          // RTC RAM: readable again after a reset
     debugTick(startedUs);
 }
