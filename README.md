@@ -578,31 +578,11 @@ to STANDBY by itself **5 s** after a remote `=O` when no more messages arrive
 | Console | `telnet juma-pa.local`, or `pio device monitor` over USB |
 | Flashing | `./tools/flash-wifi.sh` or the form in the dashboard |
 
-The link to the PA runs in a **task of its own**. The PA leaves remote mode 5 s
-after the last command and then sits in STANDBY, so its 500 ms poll must not
-depend on the main loop. It did, and that was measurable: the web server writes
-the dashboard in chunks of 1436 bytes and waits up to `HTTP_MAX_SEND_WAIT` (5 s)
-per chunk for an ACK — on a link with retransmissions, `handleClient()` blocked
-for 10 s, the PA had had no command for 13.5 s, and dropped out of OPERATE.
-
-Two things came out of it:
-
-- `http.client().setTimeout(1)` in the page handler caps the wait per chunk at
-  one second instead of five.
-- `juma` polls and parses from its own FreeRTOS task (priority above the
-  Arduino loop, same core), guarded by a mutex; `juma.status()` hands out a
-  copy. Whatever blocks the loop now, the PA keeps its remote mode. Verified
-  with a 6.9 s block: the PA stayed in OPERATE throughout.
-- `tci` likewise. Reconnecting to an SDR that is not there blocks in
-  `WiFiClient::connect()` for seconds, and the client retries every 5 s — in
-  the loop, a switched-off SDR looked like a firmware hang. `configure()` no
-  longer applies the change itself; it hands it to the task, which disconnects
-  and reconnects without anybody waiting for it.
-
-Readers outside those tasks only ever touch scalars (`freqHz()`, `tx()`,
-`connected()`), which are single aligned loads. What still rides on the main
-loop is the web server, so a long block can still cost the dashboard its
-WebSocket — the browser reconnects on its own, and the PA is unaffected.
+The PA link and the TCI client each run in a **task of their own**, guarded by
+a mutex. The PA leaves remote mode 5 s after the last command, so its 500 ms
+poll must not wait behind a web server that can block for seconds. The web
+server itself stays in the main loop; a long block there costs the dashboard
+its WebSocket, and the browser reconnects on its own.
 
 ### Console commands
 
@@ -632,31 +612,20 @@ quit                close the telnet session
 debug <0|1>         trace timings (web, loop, Wi-Fi) - not stored
 ```
 
-`debug 1` switches on the tracing at runtime — no rebuild, no flashing for a
-round of troubleshooting, and nothing running along in normal operation: every
-call site is guarded by `dbgOn()`, so an inactive trace costs one bool test.
-It is deliberately **not** persisted; a restart turns it off again.
+`debug 1` traces at runtime — timings per step of the loop, what goes to the
+PA and how it answers, WebSocket and Wi-Fi events, each line with a timestamp.
+Costs nothing while off, and a restart turns it off again.
 
 ```
 [31.801] web: / 15775 B in 68 ms (231 kB/s), RSSI -67 dBm
 [35.649] loop: 2234 runs, avg 2221 us, worst 116645 us | RSSI -67 dBm, ps 0 | heap 224124
-[40.112] ws: broadcast to 2 clients took 254 ms
+[40.112] slow: http.handleClient took 10059 ms
+[40.180] pa: 13479 ms since the last command - remote drops out at 5000
 ```
 
-| Line | Reads as |
-|---|---|
-| `web:` | how long the **device** needed to push the page into the socket. Short here while the browser still waits means the delay is on the radio link, not in the firmware |
-| `loop:` | everything runs from one loop — a blocking call shows up as `worst`. `ps 0` is `WIFI_PS_NONE`, i.e. modem sleep is really off |
-| `ws:` | only appears above 20 ms: a browser that stops reading blocks the broadcast, and with it the loop |
-
-`show` names the access point it is on (BSSID and channel) and `scan` lists the
-BSSIDs, so on an SSID with several APs a weak link can be told apart from
-hanging on the far one.
-
-Over telnet the controller echoes itself and asks the client for character
-mode (`IAC WILL ECHO`, `IAC WILL SUPPRESS-GO-AHEAD`), so the line behaves as
-usual: backspace, cursor up for the last command, Ctrl-C discards the line,
-Ctrl-U erases it, Ctrl-D on an empty line ends the session like `quit`.
+`show` also names the AP it is on (BSSID, channel), the boot count and the last
+reset reason; `scan` lists BSSIDs. The telnet line editor behaves as usual:
+backspace, cursor up, Ctrl-C, Ctrl-U, Ctrl-D.
 
 `show` counts received **bytes** separately from understood lines and shows the
 last raw bytes as hex. That narrows down the wiring:
