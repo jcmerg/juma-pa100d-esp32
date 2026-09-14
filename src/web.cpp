@@ -351,7 +351,13 @@ void webBegin() {
     // such corpses no new browser gets through and the dashboard appears
     // frozen. Tighter than the default so dead connections disappear quickly
     // instead of blocking a slot for half a minute.
-    wsSrv.enableHeartbeat(6000, 2000, 2);
+    //
+    // The reply window is the part that must not be tight. At 2 s a browser
+    // was dropped whenever the loop stalled or the radio link hiccuped -
+    // measured: a 1.8 s broadcast and 2.3 s in handleClient, both well inside
+    // what this link does. 5 s rides that out; two missed pongs still clear a
+    // dead socket within ~20 s.
+    wsSrv.enableHeartbeat(10000, 5000, 2);
     wsSrv.onEvent([](uint8_t num, WStype_t type, uint8_t* payload, size_t len) {
         if (type == WStype_TEXT) {
             payload[len] = 0;

@@ -759,7 +759,9 @@ supervisor that checks every 5 s, reconnects every 15 s and reboots after
 **`WEBSOCKETS_SERVER_CLIENT_MAX` is 5 by default.** Every tab and every reload
 occupies a slot, and connections the browser did not close cleanly linger. Once
 all slots are taken by such corpses the page still loads but receives no data —
-which looks like a hang. Hence 8 slots plus `enableHeartbeat(6000, 2000, 2)`.
+which looks like a hang. Hence 8 slots plus `enableHeartbeat(10000, 5000, 2)`
+— the 5 s reply window rides out a stalled loop or a hiccup on the radio link,
+a client that stops answering altogether is still gone within 5 s.
 
 **`WEBSOCKETS_TCP_TIMEOUT` is 5000 ms by default.** A client that does not keep
 up blocks the write — and with it the single main loop — for five seconds. On a
