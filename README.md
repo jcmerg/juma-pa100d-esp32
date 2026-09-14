@@ -22,9 +22,11 @@ SDR software ──TCI (WebSocket)──► ESP32 ──UART2──► MAX3232 �
 - firmware updates over Wi-Fi, no USB cable at the amplifier
 - telnet console for configuration and troubleshooting
 
-The screenshots show real operation — 59.8 W on 20 m, SWR 1.2, 12.3 A, and the
-supply sagging from 13.68 V to 12.98 V under load. Only the SSID and the TCI
-host have been replaced.
+The screenshots show real operation — 34 to 37 W on 20 m, SWR 1.4, around
+10 A, and the supply sagging from 13.66 V to 13.10 V under load. Only the SSID
+and the TCI host have been replaced. The alarm picture is the exception: its
+values are simulated in the browser, because 96 W into an SWR of 2.9 at 64 °C
+is not a state anybody produces on purpose.
 
 <table>
 <tr>
@@ -33,7 +35,7 @@ host have been replaced.
 </tr>
 <tr>
 <td>Light theme — system, light or dark</td>
-<td>Alarm: banner, tone and blinking tab title</td>
+<td>Alarm: banner, tone and blinking tab title (simulated values)</td>
 </tr>
 <tr>
 <td><a href="docs/settings-de.png"><img src="docs/settings-de.png" alt="Settings"></a></td>
