@@ -18,6 +18,7 @@ SDR software ──TCI (WebSocket)──► ESP32 ──UART2──► MAX3232 �
 - band selection follows the SDR's frequency, with settle time and a TX lock
 - control of OPERATE/STANDBY, band, attenuator and alarm acknowledgement
 - alarms with tone, banner and a blinking tab title — the PA only beeps locally
+- signal strength in the header, coloured by what the link can still carry
 - interface in English and German, light and dark
 - firmware updates over Wi-Fi, no USB cable at the amplifier
 - telnet console for configuration and troubleshooting
@@ -683,9 +684,11 @@ Costs nothing while off, and a restart turns it off again.
 [40.180] pa: 13479 ms since the last command - remote drops out at 5000
 ```
 
-`show` also names the AP it is on (BSSID, channel), the boot count and the last
-reset reason; `scan` lists BSSIDs. The telnet line editor behaves as usual:
-backspace, cursor up, Ctrl-C, Ctrl-U, Ctrl-D.
+`show` also names the AP it is on (BSSID, channel, transmit power), the boot
+count with the last reset reason, and — while the fallback AP is up — whether
+its DHCP server is actually handing out addresses; `scan` lists BSSIDs. The
+telnet line editor behaves as usual: backspace, cursor up, Ctrl-C, Ctrl-U,
+Ctrl-D.
 
 `show` counts received **bytes** separately from understood lines and shows the
 last raw bytes as hex. That narrows down the wiring:
