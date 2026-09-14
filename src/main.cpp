@@ -65,7 +65,11 @@ static void wifiSupervise() {
         if (rssiAvg > (float)WIFI_ROAM_RSSI) { wifiWeakAt = 0; return; }
         if (!wifiWeakAt) { wifiWeakAt = millis(); return; }
         if (millis() - wifiWeakAt < WIFI_ROAM_HOLD_MS) return;
-        if (millis() - wifiRoamAt < WIFI_ROAM_MIN_GAP) return;
+        // wifiRoamAt == 0 means "never roamed", not "roamed at boot" - without
+        // that distinction the first five minutes after a restart are exactly
+        // when the device may not leave a bad AP, which is when it is most
+        // likely to be stuck on one.
+        if (wifiRoamAt && millis() - wifiRoamAt < WIFI_ROAM_MIN_GAP) return;
 
         // Reconnect. The scan configured above picks the strongest AP - that
         // may well be the same one, in which case it was merely an attempt.

@@ -1,5 +1,6 @@
 #include "web.h"
 #include "console.h"
+#include <esp_task_wdt.h>
 #include "config.h"
 #include "juma.h"
 #include "tci.h"
@@ -320,8 +321,21 @@ void webBegin() {
         // the copy client() returns is enough.
         http.client().setTimeout(1);
         uint32_t t0 = millis();
-        http.send_P(200, "text/html; charset=utf-8",
-                    (PGM_P)INDEX_HTML_GZ, INDEX_HTML_GZ_LEN);
+        // Sent in pieces rather than in one send_P: a write to a client on a
+        // bad link retries internally, and three slow chunks in a row were
+        // enough for the 20 s task watchdog to reboot the device - which then
+        // came back on whatever AP it found first. Between chunks the
+        // watchdog gets fed, and a client that has gone away ends it early.
+        http.setContentLength(INDEX_HTML_GZ_LEN);
+        http.send(200, "text/html; charset=utf-8", "");
+        const size_t STEP = 1436;
+        for (size_t off = 0; off < INDEX_HTML_GZ_LEN; off += STEP) {
+            size_t n = INDEX_HTML_GZ_LEN - off;
+            if (n > STEP) n = STEP;
+            http.sendContent_P((PGM_P)(INDEX_HTML_GZ + off), n);
+            esp_task_wdt_reset();
+            if (!http.client().connected()) break;
+        }
         // Time spent *here* is the device pushing bytes into the socket. If
         // this is short and the browser still waits, the delay is on the
         // radio link, not in the firmware.
