@@ -33,6 +33,13 @@ font:15px/1.45 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,s
 header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
 h1{font-size:18px;margin:0;font-weight:600;letter-spacing:.3px}
 .dot{width:9px;height:9px;border-radius:50%;display:inline-block;background:var(--bad);flex:0 0 auto}
+.sig{display:inline-flex;align-items:flex-end;gap:2px;height:12px;color:var(--dim);flex:0 0 auto}
+.sig i{width:3px;border-radius:1px;background:currentColor;opacity:.25}
+.sig i:nth-child(1){height:3px}.sig i:nth-child(2){height:6px}
+.sig i:nth-child(3){height:9px}.sig i:nth-child(4){height:12px}
+.sig.l1 i:nth-child(-n+1),.sig.l2 i:nth-child(-n+2),
+.sig.l3 i:nth-child(-n+3),.sig.l4 i:nth-child(-n+4){opacity:1}
+.sig.ok{color:var(--ok)}.sig.warn{color:var(--warn)}.sig.bad{color:var(--bad)}
 .dot.on{background:var(--ok)}
 .pill{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim)}
 .hbtn{background:var(--btn);border:1px solid var(--line);color:var(--fg);border-radius:8px;
@@ -143,6 +150,7 @@ input[type=file]{padding:7px}
 <header><h1>JUMA PA</h1>
 <span class="pill"><span class="dot" id="dPa"></span>PA</span>
 <span class="pill"><span class="dot" id="dTci"></span>TCI <span id="tciQrg">-</span></span>
+<span class="pill" id="wifiPill"><span class="sig" id="sig"><i></i><i></i><i></i><i></i></span><span id="wifiTxt">-</span></span>
 <code id="raw"></code>
 <button class="hbtn" id="bGear" style="margin-left:auto" title="Setup">&#9881;</button></header>
 
@@ -703,6 +711,7 @@ if(s.swrWarn&&(s.swrWarn!==SWRWARN||s.swrHigh!==SWRHIGH)){
 }
 $("dPa").className="dot"+(s.online?" on":"");
 $("dTci").className="dot"+(s.tciConn?" on":"");
+  setSignal(s);
 $("tciQrg").textContent=s.tciHz?(s.tciHz/1e6).toFixed(4)+" MHz "+s.tciBandName:"-";
 
 $("state").textContent=s.online?(s.operate?"OPERATE":"STANDBY"):"OFFLINE";
@@ -802,6 +811,19 @@ if(!$("panel").classList.contains("on")){
 applyLang();
 // A dashboard stuck on old values looks like a hang - so the page says
 // clearly when the connection is gone.
+// Four bars from the RSSI, with the thresholds taken from what this link
+// actually did: -54 dBm pages loaded in 0.2 s, at -63 to -68 it stayed fine,
+// from about -72 downwards 1200-byte pings started losing 7 % and the
+// dashboard turned sluggish, and at -84 nothing worked at all. So amber
+// begins where the retransmissions begin, not where a textbook says so.
+function setSignal(s){
+  var r=s.rssi|0,lvl=0,cls="bad";
+  if(s.apMode){ $("sig").className="sig"; $("wifiTxt").textContent="AP"; return; }
+  if(r){ lvl = r>=-60?4 : r>=-68?3 : r>=-75?2 : r>=-82?1 : 0;
+         cls = lvl>=3?"ok" : lvl==2?"warn" : "bad"; }
+  $("sig").className="sig l"+lvl+" "+cls;
+  $("wifiTxt").textContent = r ? r+" dBm" : "-";
+}
 function setLink(on){
   $("off").className="offline"+(on?"":" on");
   document.body.classList.toggle("off",!on);

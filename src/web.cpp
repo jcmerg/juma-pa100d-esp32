@@ -141,6 +141,10 @@ static void buildState() {
     d["alarms"]  = s.alarms;
     d["raw"]     = s.raw;
     d["autoband"]= cfg.autoband;
+    // For the signal indicator in the header: RSSI is only meaningful while
+    // associated - in AP mode the dashboard says so instead of drawing bars.
+    d["apMode"] = (WiFi.getMode() & WIFI_AP) && WiFi.status() != WL_CONNECTED;
+    d["rssi"]   = (WiFi.status() == WL_CONNECTED) ? WiFi.RSSI() : 0;
     d["tciConn"] = tci.connected();
     d["tciHz"]   = tci.freqHz();
     d["tciBandName"] = bandNameFromHz(tci.freqHz());
