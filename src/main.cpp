@@ -13,6 +13,7 @@
 #include <ArduinoOTA.h>
 #include <esp_task_wdt.h>
 #include <esp_wifi.h>          // esp_wifi_get_ps() for the debug trace
+#include <esp_system.h>        // esp_reset_reason()
 #include "config.h"
 #include "juma.h"
 #include "tci.h"
@@ -71,6 +72,9 @@ static void wifiSupervise() {
         log_w("RSSI averaging %d dBm for %lu s - looking for a stronger AP",
               (int)rssiAvg, (unsigned long)((millis() - wifiWeakAt) / 1000));
         wifiRoams_++;
+        if (dbgOn()) dbg("wifi: RSSI %d dBm for %lu s - reconnecting to the "
+                         "strongest AP", (int)rssiAvg,
+                         (unsigned long)((millis() - wifiWeakAt) / 1000));
         wifiRoamAt = millis();
         wifiWeakAt = 0;
         rssiAvg    = 0;
@@ -79,7 +83,13 @@ static void wifiSupervise() {
         return;
     }
 
-    if (wifiWasUp) { wifiDrops_++; wifiWasUp = false; log_w("Wi-Fi lost"); }
+    if (wifiWasUp) {
+        wifiDrops_++;
+        wifiWasUp = false;
+        log_w("Wi-Fi lost");
+        if (dbgOn()) dbg("wifi: association lost after %lu s, RSSI last %d dBm",
+                         (unsigned long)(millis() / 1000), (int)rssiAvg);
+    }
 
     if (WiFi.getMode() == WIFI_STA && millis() - wifiRetryAt > WIFI_RETRY_MS) {
         wifiRetryAt = millis();
@@ -109,7 +119,7 @@ static uint8_t  forceMTries  = 0;
 // Automatic band selection: TCI frequency -> "=Bn"
 // ---------------------------------------------------------------------------
 static void bandControl() {
-    const JumaStatus& s = juma.status();
+    const JumaStatus s = juma.status();
 
     // The hint in the dashboard always shows the CURRENT reason, never a
     // one-off event - otherwise a stale message lingers after a change, and
@@ -226,12 +236,62 @@ static void wifiBegin() {
     }
 }
 
+// Reboots are the kind of thing nobody sees happen: the device is simply back,
+// with its uptime at zero. These few words live in RTC RAM, which survives a
+// watchdog reset, a panic and a software restart - only a power cut or a
+// brownout clears them, and esp_reset_reason() names that case anyway.
+// RAM, not NVS: the running uptime is written on every loop, which would wear
+// out flash within weeks.
+#define BOOT_MAGIC 0x4A554D41            // 'JUMA'
+RTC_NOINIT_ATTR static uint32_t bootMagic;
+RTC_NOINIT_ATTR static uint32_t bootCount;
+RTC_NOINIT_ATTR static uint32_t lastRunS;     // uptime reached before the reset
+RTC_NOINIT_ATTR static uint32_t runS;         // uptime of the current run
+static esp_reset_reason_t resetReason = ESP_RST_UNKNOWN;
+
+const char* resetReasonName() {
+    switch (resetReason) {
+    case ESP_RST_POWERON:  return "power on";
+    case ESP_RST_EXT:      return "reset pin";
+    case ESP_RST_SW:       return "software restart";
+    case ESP_RST_PANIC:    return "crash (panic)";
+    case ESP_RST_INT_WDT:  return "interrupt watchdog";
+    case ESP_RST_TASK_WDT: return "task watchdog - loop blocked";
+    case ESP_RST_WDT:      return "other watchdog";
+    case ESP_RST_BROWNOUT: return "brownout - supply dipped";
+    case ESP_RST_DEEPSLEEP:return "deep sleep";
+    case ESP_RST_SDIO:     return "SDIO";
+    default:               return "unknown";
+    }
+}
+uint32_t bootNumber()   { return bootCount; }
+uint32_t lastRunSecs()  { return lastRunS; }
+
+static void bootCensus() {
+    resetReason = esp_reset_reason();
+    // A brownout or a power cut leaves RTC RAM as garbage - the magic says
+    // whether the counters below mean anything.
+    const bool carriedOver = (bootMagic == BOOT_MAGIC);
+    if (!carriedOver) {
+        bootMagic = BOOT_MAGIC;
+        bootCount = 0;
+        runS      = 0;          // uninitialised RTC RAM - not a previous run
+    }
+    bootCount++;
+    lastRunS = carriedOver ? runS : 0;
+    runS     = 0;
+    Serial.printf("Boot %lu, reset: %s", (unsigned long)bootCount, resetReasonName());
+    if (lastRunS) Serial.printf(", previous run %lu s", (unsigned long)lastRunS);
+    Serial.println();
+}
+
 void setup() {
     Serial.begin(115200);
     delay(200);
     Serial.println();
     Serial.println("JUMA PA-100D Controller " FW_VERSION);
 
+    bootCensus();
     settingsLoad();
     juma.begin();
     wifiBegin();
@@ -292,15 +352,38 @@ static void debugTick(uint32_t startedUs) {
     worstUs = sumUs = loops = 0;
 }
 
+// Everything runs from this one loop, and the PA leaves remote mode 5 s after
+// the last command - so a single blocking call costs the operating mode. Which
+// call it was is the question the aggregate above cannot answer, so with
+// tracing on each step is timed separately. Two millis() per step, nothing
+// when it is off.
+static const uint32_t PHASE_WARN_MS = 250;
+static uint32_t phaseAt = 0;
+// Cleared when tracing is off, so switching it on mid-loop cannot make the
+// step it was switched on in look like it took the time since the last run.
+static inline void phaseStart() { phaseAt = dbgOn() ? millis() : 0; }
+static inline void phaseEnd(const char* what) {
+    // phaseAt == 0 means tracing was switched on inside this very step - the
+    // step has no start time, and millis() alone would report the uptime as
+    // its duration.
+    if (!dbgOn() || !phaseAt) return;
+    uint32_t ms = millis() - phaseAt;
+    phaseAt = 0;
+    if (ms > PHASE_WARN_MS) dbg("slow: %s blocked the loop for %lu ms", what,
+                                (unsigned long)ms);
+}
+#define PHASE(name, call) do { phaseStart(); call; phaseEnd(name); } while (0)
+
 void loop() {
     uint32_t startedUs = micros();
     esp_task_wdt_reset();
-    ArduinoOTA.handle();
-    juma.loop();
-    tci.loop();
-    webLoop();
-    consoleLoop();
-    wifiSupervise();
-    bandControl();
+    PHASE("ArduinoOTA.handle", ArduinoOTA.handle());
+    // juma and tci run in tasks of their own - that is the point: whatever
+    // blocks there, the PA keeps getting its poll and stays in remote mode.
+    PHASE("webLoop",           webLoop());
+    PHASE("consoleLoop",       consoleLoop());
+    PHASE("wifiSupervise",     wifiSupervise());
+    PHASE("bandControl",       bandControl());
+    runS = millis() / 1000;          // RTC RAM: readable again after a reset
     debugTick(startedUs);
 }

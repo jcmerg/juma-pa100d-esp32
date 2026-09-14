@@ -3,6 +3,9 @@
 #include "web.h"
 
 // defined in main.cpp
+const char* resetReasonName();
+uint32_t bootNumber();
+uint32_t lastRunSecs();
 uint32_t wifiDropCount();
 uint32_t wifiRoamCount();
 int32_t  wifiRssiAvg();
@@ -98,7 +101,7 @@ static void help() {
 }
 
 static void show() {
-    const JumaStatus& s = juma.status();
+    const JumaStatus s = juma.status();
     io->println();
     io->printf("Name      %s  ->  http://%s.local/\n",
                   cfg.hostname.c_str(), cfg.hostname.c_str());
@@ -162,9 +165,15 @@ static void show() {
     io->printf("Heap      %u free, largest block %u, minimum since boot %u\n",
                   (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMaxAllocHeap(),
                   (unsigned)ESP.getMinFreeHeap());
-    io->printf("Uptime    %lu s   Wi-Fi: %lu drops, %lu AP switches\n\n",
+    io->printf("Uptime    %lu s   Wi-Fi: %lu drops, %lu AP switches\n",
                   (unsigned long)(millis() / 1000),
                   (unsigned long)wifiDropCount(), (unsigned long)wifiRoamCount());
+    // A restart is invisible from the outside - the device is simply back.
+    io->printf("Boot      #%lu, last reset: %s",
+                  (unsigned long)bootNumber(), resetReasonName());
+    if (lastRunSecs()) io->printf(", previous run %lu s", (unsigned long)lastRunSecs());
+    io->println();
+    io->println();
 }
 
 static void scan() {
@@ -371,6 +380,10 @@ bool dbgOn() { return dbgFlag; }
 void dbg(const char* fmt, ...) {
     if (!dbgFlag) return;
 
+    // Called from the loop task and from the PA task, so one line at a time.
+    static SemaphoreHandle_t lock = xSemaphoreCreateMutex();
+    if (lock) xSemaphoreTake(lock, portMAX_DELAY);
+
     Print* out = (tc && tc.connected()) ? (Print*)&tout : (Print*)&Serial;
     for (uint8_t i = 0; i < len; i++) out->print(F("\b \b"));
     out->print(F("["));
@@ -386,6 +399,7 @@ void dbg(const char* fmt, ...) {
 
     out->print(F("> "));
     if (len) { line[len] = '\0'; out->print(line); }
+    if (lock) xSemaphoreGive(lock);
 }
 
 void consoleBegin() {

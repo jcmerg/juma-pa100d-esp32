@@ -101,7 +101,7 @@ void settingsSave() {
 // --- State as JSON --------------------------------------------------------
 
 static void buildState() {
-    const JumaStatus& s = juma.status();
+    const JumaStatus s = juma.status();
     JsonDocument d;
     d["online"]  = juma.online();
     d["operate"] = s.operate;
@@ -310,6 +310,15 @@ void webBegin() {
         // there for seconds without buttons or gauges.
         http.sendHeader("Cache-Control", "no-store");
         http.sendHeader("Content-Encoding", "gzip");
+        // The server writes the body in chunks of 1436 bytes and waits up to
+        // HTTP_MAX_SEND_WAIT (5 s) for each one to be ACKed - and the whole
+        // loop waits with it. On a link with retransmissions two such chunks
+        // are enough to exceed the 5 s after which the PA leaves remote mode
+        // and falls back to STANDBY. Measured: handleClient() blocked for
+        // 10.06 s, the PA had had no command for 13.5 s, STANDBY. One second
+        // is still generous for a LAN; setTimeout works on the socket, so
+        // the copy client() returns is enough.
+        http.client().setTimeout(1);
         uint32_t t0 = millis();
         http.send_P(200, "text/html; charset=utf-8",
                     (PGM_P)INDEX_HTML_GZ, INDEX_HTML_GZ_LEN);
@@ -348,8 +357,17 @@ void webBegin() {
             payload[len] = 0;
             handleCmd((const char*)payload);
         } else if (type == WStype_CONNECTED) {
+            if (dbgOn()) dbg("ws: client %u connected (%u total)", num,
+                             wsSrv.connectedClients());
             buildState();
             wsSrv.sendTXT(num, stateJson, stateLen);
+        } else if (type == WStype_DISCONNECTED) {
+            // The browser reports "connection lost" either way - this says
+            // whether the socket went down while Wi-Fi stayed up, which is
+            // what the heartbeat does when a reply takes too long.
+            if (dbgOn()) dbg("ws: client %u gone (%u left, Wi-Fi %s)", num,
+                             wsSrv.connectedClients(),
+                             WiFi.status() == WL_CONNECTED ? "up" : "DOWN");
         }
     });
 }
@@ -357,8 +375,17 @@ void webBegin() {
 uint8_t webClients() { return wsSrv.connectedClients(); }
 
 void webLoop() {
+    uint32_t t0 = millis();
     http.handleClient();
+    // A client that opens a socket and then says nothing holds handleClient()
+    // for HTTP_MAX_DATA_WAIT - seconds, in the middle of the loop.
+    if (dbgOn() && millis() - t0 > 250)
+        dbg("slow: http.handleClient took %lu ms", (unsigned long)(millis() - t0));
+
+    t0 = millis();
     wsSrv.loop();
+    if (dbgOn() && millis() - t0 > 250)
+        dbg("slow: wsSrv.loop took %lu ms", (unsigned long)(millis() - t0));
 
     if (millis() - lastPush >= POLL_INTERVAL_MS) {
         lastPush = millis();

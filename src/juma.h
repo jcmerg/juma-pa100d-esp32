@@ -2,12 +2,19 @@
 #include <Arduino.h>
 #include "juma_status.h"
 
+// The link to the PA runs in a task of its own. The PA leaves remote mode
+// 5 s after the last command and then sits in STANDBY, so the 500 ms poll
+// must not depend on the main loop: a single HTTP write to a browser on a
+// weak link blocks that loop for seconds (measured: 10 s), which cost the
+// operating mode every time.
 class Juma {
 public:
-    void begin();
-    void loop();
+    void begin();                        // also starts the task
 
-    const JumaStatus& status() const { return st_; }
+    // A copy, not a reference: the task writes the status while others read
+    // it. The struct is small enough that copying it beats holding a lock
+    // across whatever the caller does with it.
+    JumaStatus status() const;
     bool online() const;                 // status reply recent enough?
 
     bool send(const char* cmd);          // into the queue
@@ -31,6 +38,8 @@ private:
     static const uint8_t QN = 8;         // command queue
     static const uint8_t QL = 10;
 
+    static void task(void* self);
+    void service();                      // one pass: send, receive, poll
     void parseLine(char* line);
     bool enqueue(const char* cmd);
     void pumpQueue();
@@ -47,6 +56,7 @@ private:
     uint8_t  tail_[TAIL] = {0};
     uint8_t  tailN_ = 0, tailPos_ = 0;
     char     lastSent_[QL] = {0};
+    SemaphoreHandle_t mtx_ = nullptr;
 };
 
 extern Juma juma;

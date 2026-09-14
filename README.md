@@ -578,6 +578,32 @@ to STANDBY by itself **5 s** after a remote `=O` when no more messages arrive
 | Console | `telnet juma-pa.local`, or `pio device monitor` over USB |
 | Flashing | `./tools/flash-wifi.sh` or the form in the dashboard |
 
+The link to the PA runs in a **task of its own**. The PA leaves remote mode 5 s
+after the last command and then sits in STANDBY, so its 500 ms poll must not
+depend on the main loop. It did, and that was measurable: the web server writes
+the dashboard in chunks of 1436 bytes and waits up to `HTTP_MAX_SEND_WAIT` (5 s)
+per chunk for an ACK — on a link with retransmissions, `handleClient()` blocked
+for 10 s, the PA had had no command for 13.5 s, and dropped out of OPERATE.
+
+Two things came out of it:
+
+- `http.client().setTimeout(1)` in the page handler caps the wait per chunk at
+  one second instead of five.
+- `juma` polls and parses from its own FreeRTOS task (priority above the
+  Arduino loop, same core), guarded by a mutex; `juma.status()` hands out a
+  copy. Whatever blocks the loop now, the PA keeps its remote mode. Verified
+  with a 6.9 s block: the PA stayed in OPERATE throughout.
+- `tci` likewise. Reconnecting to an SDR that is not there blocks in
+  `WiFiClient::connect()` for seconds, and the client retries every 5 s — in
+  the loop, a switched-off SDR looked like a firmware hang. `configure()` no
+  longer applies the change itself; it hands it to the task, which disconnects
+  and reconnects without anybody waiting for it.
+
+Readers outside those tasks only ever touch scalars (`freqHz()`, `tx()`,
+`connected()`), which are single aligned loads. What still rides on the main
+loop is the web server, so a long block can still cost the dashboard its
+WebSocket — the browser reconnects on its own, and the PA is unaffected.
+
 ### Console commands
 
 ```
