@@ -649,6 +649,8 @@ scan                scan for Wi-Fi networks
 hostname <name>     network name for Wi-Fi, mDNS and OTA
 ssid <name>         set the Wi-Fi SSID
 pass <secret>       set the Wi-Fi password
+ip dhcp             address from the network (default)
+ip <addr> <gw> [mask] [dns]   fixed address
 tci <host> [port]   TCI host of the SDR software (port default 50002)
 tcien <0|1>         TCI client off/on
 autoband <0|1>      band selection via TCI off/on

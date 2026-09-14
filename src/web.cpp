@@ -86,6 +86,11 @@ void settingsLoad() {
     cfg.swrWarnX10 = prefs.getUChar("swrwarn", 20);
     cfg.swrHighX10 = prefs.getUChar("swrhigh", 25);
     cfg.swrAlarm   = prefs.getBool("swralarm", true);
+    cfg.staticIp   = prefs.getBool("staticip", false);
+    if (prefs.isKey("ip"))   cfg.ip   = prefs.getString("ip");
+    if (prefs.isKey("gw"))   cfg.gw   = prefs.getString("gw");
+    if (prefs.isKey("mask")) cfg.mask = prefs.getString("mask");
+    if (prefs.isKey("dns"))  cfg.dns  = prefs.getString("dns");
     prefs.end();
 }
 
@@ -106,6 +111,11 @@ void settingsSave() {
     prefs.putUChar("swrwarn", cfg.swrWarnX10);
     prefs.putUChar("swrhigh", cfg.swrHighX10);
     prefs.putBool("swralarm", cfg.swrAlarm);
+    prefs.putBool("staticip", cfg.staticIp);
+    prefs.putString("ip",   cfg.ip);
+    prefs.putString("gw",   cfg.gw);
+    prefs.putString("mask", cfg.mask);
+    prefs.putString("dns",  cfg.dns);
     prefs.end();
 }
 

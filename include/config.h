@@ -1,9 +1,10 @@
 #pragma once
+#include <Arduino.h>   // IPAddress
 #include <stdint.h>
 
 // Bump the number on every build you want to recognise on the device - that is
 // how you check what is actually running after an OTA update.
-#define FW_VERSION "1.23.0"
+#define FW_VERSION "1.25.0"
 
 // ---------------------------------------------------------------------------
 // Hardware
@@ -85,6 +86,12 @@ static const char*    AP_SSID   = "JUMA-PA";
 #define OTA_PASSWORD "changeme"
 #endif
 static const char*    AP_PASS   = AP_PASSWORD;
+// Address of the fallback AP. Set explicitly rather than left to the default:
+// softAPConfig() is what stops the DHCP server, writes the address range and
+// starts it again - without it a client can associate and then wait for an
+// address that never comes.
+static const IPAddress AP_IP  (192, 168, 4, 1);
+static const IPAddress AP_MASK(255, 255, 255, 0);
 static const uint16_t HTTP_PORT = 80;
 static const uint16_t WS_PORT   = 81;
 

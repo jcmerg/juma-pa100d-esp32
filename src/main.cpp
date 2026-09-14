@@ -13,6 +13,7 @@
 #include <ArduinoOTA.h>
 #include <esp_task_wdt.h>
 #include <esp_wifi.h>          // esp_wifi_get_ps() for the debug trace
+#include <esp_netif.h>         // to check that the AP really serves DHCP
 #include <esp_system.h>        // esp_reset_reason()
 #include "config.h"
 #include "juma.h"
@@ -215,9 +216,53 @@ static void bandControl() {
 }
 
 // ---------------------------------------------------------------------------
+// Is the DHCP server of the fallback AP actually running? A client that
+// associates and then gets no address is the symptom; this is the answer.
+bool apDhcpRunning() {
+    esp_netif_t* ap = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
+    if (!ap) return false;
+    esp_netif_dhcp_status_t st = ESP_NETIF_DHCP_INIT;
+    if (esp_netif_dhcps_get_status(ap, &st) != ESP_OK) return false;
+    return st == ESP_NETIF_DHCP_STARTED;
+}
+
+static void apFallback() {
+    // Raising the AP straight out of station mode leaves its DHCP server
+    // behind: association works, the address never arrives. Take the station
+    // side down first, then configure the AP network *before* raising it -
+    // softAPConfig() is what stops the DHCP server, writes the address range
+    // and starts it again.
+    WiFi.disconnect(true, true);
+    WiFi.mode(WIFI_OFF);
+    delay(100);
+    WiFi.mode(WIFI_AP);
+    if (!WiFi.softAPConfig(AP_IP, AP_IP, AP_MASK))
+        log_e("softAPConfig failed - the AP will not hand out addresses");
+    if (!WiFi.softAP(AP_SSID, AP_PASS))
+        log_e("softAP failed");
+    delay(100);
+    log_w("No Wi-Fi - AP '%s' on %s, DHCP %s", AP_SSID,
+          WiFi.softAPIP().toString().c_str(),
+          apDhcpRunning() ? "running" : "NOT RUNNING");
+}
+
 static void wifiBegin() {
     WiFi.mode(WIFI_STA);
     WiFi.setHostname(cfg.hostname.c_str());
+
+    // A fixed address has to be set before begin(), and applies to this
+    // connection attempt and every reconnect after it.
+    if (cfg.staticIp && cfg.ip.length()) {
+        IPAddress ip, gw, mask, dns;
+        bool ok = ip.fromString(cfg.ip) && mask.fromString(cfg.mask);
+        if (ok && cfg.gw.length()) ok = gw.fromString(cfg.gw);
+        if (ok && cfg.dns.length()) dns.fromString(cfg.dns);
+        else dns = gw;                     // no DNS given: ask the gateway
+        if (ok && WiFi.config(ip, gw, mask, dns))
+            log_i("static address %s, gateway %s", cfg.ip.c_str(), cfg.gw.c_str());
+        else
+            log_e("static address %s rejected - falling back to DHCP", cfg.ip.c_str());
+    }
 
     if (cfg.ssid.length()) {
         // The default is WIFI_FAST_SCAN, which makes the ESP32 take the
@@ -234,9 +279,7 @@ static void wifiBegin() {
     if (WiFi.status() != WL_CONNECTED) {
         // Without Wi-Fi, raise an AP of our own so the web UI stays
         // reachable for configuration.
-        WiFi.mode(WIFI_AP);
-        WiFi.softAP(AP_SSID, AP_PASS);
-        log_w("No Wi-Fi - AP '%s' on %s", AP_SSID, WiFi.softAPIP().toString().c_str());
+        apFallback();
     } else {
         // AFTER connecting - set earlier, WiFi.begin() discards it again.
         // With modem sleep every round trip waits for the next beacon

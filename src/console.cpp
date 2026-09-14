@@ -4,6 +4,7 @@
 
 // defined in main.cpp
 const char* resetReasonName();
+bool apDhcpRunning();
 uint32_t bootNumber();
 uint32_t lastRunSecs();
 uint32_t wifiDropCount();
@@ -80,6 +81,11 @@ static bool closed = false;
 // somebody is watching, not to the next twelve months of operation.
 static bool dbgFlag = false;
 
+// Set by the commands that change cfg without storing it - ssid, pass,
+// hostname, tci. Typing those and then walking away loses them, and the
+// console is where people configure a new device, so it has to say so.
+static bool unsaved = false;
+
 static void help() {
     io->println(F(
         "\nCommands:\n"
@@ -87,6 +93,8 @@ static void help() {
         "  scan                scan for Wi-Fi networks\n"
         "  hostname <name>     network name for Wi-Fi, mDNS and OTA\n"
         "  ssid <name>         set the Wi-Fi SSID\n"
+        "  ip dhcp             address from the network (default)\n"
+        "  ip <addr> <gw> [mask] [dns]   fixed address\n"
         "  pass <secret>       set the Wi-Fi password\n"
         "  tci <host> [port]   TCI host of the SDR software (port default 50002)\n"
         "  tcien <0|1>         TCI client off/on\n"
@@ -124,10 +132,20 @@ static void show() {
                       WiFi.localIP().toString().c_str(), WiFi.RSSI(), (int)wifiRssiAvg(),
                       WiFi.BSSIDstr().c_str(), WiFi.channel());
     else if (WiFi.getMode() & WIFI_AP)
-        io->printf("          AP '%s', IP %s\n", AP_SSID,
-                      WiFi.softAPIP().toString().c_str());
+        io->printf("          AP '%s', IP %s, DHCP %s, %u client(s)\n", AP_SSID,
+                      WiFi.softAPIP().toString().c_str(),
+                      apDhcpRunning() ? "on" : "OFF - clients get no address",
+                      WiFi.softAPgetStationNum());
     else
         io->println(F("          not connected"));
+
+    if (cfg.staticIp && cfg.ip.length())
+        io->printf("Address   fixed %s, gateway %s, mask %s%s%s\n",
+                      cfg.ip.c_str(), cfg.gw.length() ? cfg.gw.c_str() : "-",
+                      cfg.mask.c_str(), cfg.dns.length() ? ", DNS " : "",
+                      cfg.dns.length() ? cfg.dns.c_str() : "");
+    else
+        io->println(F("Address   from DHCP"));
 
     io->printf("TCI       %s  %s:%u  %s   messages %lu, drops %lu\n",
                   cfg.tciEn ? "on" : "off",
@@ -170,6 +188,7 @@ static void show() {
                       s.watts, s.swr, s.volts, s.amps, s.temp,
                       s.celsius ? 'C' : 'F', s.alarms);
     io->printf("Browser   %u WebSocket clients connected\n", webClients());
+    if (unsaved) io->println(F("          unsaved changes - 'save' stores them and restarts"));
     io->printf("Version   %s\n", FW_VERSION);
     // Free heap alone is misleading: what matters is the largest contiguous
     // block. If that falls while "free" holds steady, it is fragmentation
@@ -217,13 +236,17 @@ static void dispatch(char* s) {
 
     if (!strcmp(cmd, "quit") || !strcmp(cmd, "exit") || !strcmp(cmd, "bye")) {
         if (io == &tout) {
+            if (unsaved) io->println(F("note: unsaved changes - 'save' stores them"));
             io->println(F("bye"));
             tc.flush();
             tc.stop();
             io = &Serial;
             closed = true;               // feed() then skips the prompt
+        } else if (unsaved) {
+            io->println(F("nothing to close here - this is the serial console.\n"
+                          "Unsaved changes: 'save' stores them and restarts."));
         } else {
-            io->println(F("'quit' only ends a telnet session"));
+            io->println(F("nothing to close here - this is the serial console."));
         }
         return;
     }
@@ -250,6 +273,7 @@ static void dispatch(char* s) {
     if (!strcmp(cmd, "hostname")) {
         if (!arg) { io->println(F("example: hostname juma-pa")); return; }
         cfg.hostname = sanitizeHostname(arg);
+        unsaved = true;
         io->printf("hostname = '%s'   ('save' to store, effective after restart)\n",
                       cfg.hostname.c_str());
         return;
@@ -258,6 +282,7 @@ static void dispatch(char* s) {
     if (!strcmp(cmd, "ssid")) {
         if (!arg) { io->println(F("example: ssid MyNetwork")); return; }
         cfg.ssid = arg;
+        unsaved = true;
         io->printf("SSID = '%s'   ('save' to store)\n", cfg.ssid.c_str());
         return;
     }
@@ -265,8 +290,43 @@ static void dispatch(char* s) {
     if (!strcmp(cmd, "pass")) {
         if (!arg) { io->println(F("example: pass secret123")); return; }
         cfg.pass = arg;
+        unsaved = true;
         io->printf("password set (%u characters)   ('save' to store)\n",
                       cfg.pass.length());
+        return;
+    }
+
+    if (!strcmp(cmd, "ip")) {
+        if (!arg) {
+            io->println(F("ip dhcp   |   ip 192.168.1.50 192.168.1.1 [255.255.255.0] [dns]"));
+            return;
+        }
+        if (!strncmp(arg, "dhcp", 4)) {
+            cfg.staticIp = false;
+            settingsSave();
+            io->println(F("address from DHCP (saved, effective after restart)"));
+            return;
+        }
+        // addr [gw [mask [dns]]] - split on blanks, validate every part
+        char* parts[4] = { arg, nullptr, nullptr, nullptr };
+        uint8_t np = 1;
+        for (char* p = arg; *p && np < 4; p++)
+            if (*p == ' ') { *p = '\0'; while (p[1] == ' ') p++; parts[np++] = p + 1; }
+
+        IPAddress probe;
+        if (!probe.fromString(parts[0])) { io->println(F("not an address")); return; }
+        if (np > 1 && !probe.fromString(parts[1])) { io->println(F("gateway is not an address")); return; }
+        if (np > 2 && !probe.fromString(parts[2])) { io->println(F("mask is not an address")); return; }
+        if (np > 3 && !probe.fromString(parts[3])) { io->println(F("DNS is not an address")); return; }
+
+        cfg.ip   = parts[0];
+        cfg.gw   = np > 1 ? parts[1] : "";
+        cfg.mask = np > 2 ? parts[2] : "255.255.255.0";
+        cfg.dns  = np > 3 ? parts[3] : "";
+        cfg.staticIp = true;
+        settingsSave();
+        io->printf("fixed address %s, gateway %s, mask %s (saved, effective after restart)\n",
+                      cfg.ip.c_str(), cfg.gw.length() ? cfg.gw.c_str() : "-", cfg.mask.c_str());
         return;
     }
 
@@ -277,6 +337,7 @@ static void dispatch(char* s) {
         cfg.tciHost = arg;
         if (!cfg.tciPort) cfg.tciPort = TCI_DEFAULT_PORT;
         cfg.tciEn = true;
+        unsaved = true;
         // apply at once so testing does not require a reboot
         tci.configure(cfg.tciHost, cfg.tciPort, cfg.tciEn);
         io->printf("TCI = %s:%u, enabled   ('save' to persist)\n",
@@ -286,6 +347,7 @@ static void dispatch(char* s) {
 
     if (!strcmp(cmd, "tcien")) {
         cfg.tciEn = (arg && atoi(arg) != 0);
+        unsaved = true;
         tci.configure(cfg.tciHost, cfg.tciPort, cfg.tciEn);
         io->printf("TCI %s   ('save' to persist)\n", cfg.tciEn ? "on" : "off");
         return;
@@ -376,6 +438,7 @@ static void dispatch(char* s) {
 
     if (!strcmp(cmd, "save")) {
         settingsSave();
+        unsaved = false;
         io->println(F("saved - restarting..."));
         delay(300);
         ESP.restart();
