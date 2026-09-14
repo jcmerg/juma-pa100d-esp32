@@ -154,6 +154,9 @@ static void show() {
                   (unsigned long)juma.rxBytes(),
                   (unsigned long)juma.rxLines(), (unsigned long)juma.badLines(),
                   juma.lastSent());
+    char banner[48];
+    juma.bannerCopy(banner, sizeof(banner));
+    if (banner[0]) io->printf("          says: '%s'\n", banner);
     if (juma.rxBytes()) {
         char hex[96];
         juma.hexTail(hex, sizeof(hex));

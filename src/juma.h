@@ -32,6 +32,11 @@ public:
     // Last received raw bytes as hex - separates "nothing arrives" from
     // "bytes arrive but baud rate or framing is wrong".
     void     hexTail(char* out, size_t cap) const;
+    // The last line that was not a status reply, as text - typically the
+    // banner the PA sends at power-up. Nothing is assumed about its content:
+    // it is what tells you which firmware answers, on an original, on a
+    // clone, or on a model this was never tried with.
+    void     bannerCopy(char* out, size_t cap) const;
     const char* lastSent() const { return lastSent_; }
 
 private:
@@ -56,6 +61,7 @@ private:
     uint8_t  tail_[TAIL] = {0};
     uint8_t  tailN_ = 0, tailPos_ = 0;
     char     lastSent_[QL] = {0};
+    char     banner_[48] = {0};
     SemaphoreHandle_t mtx_ = nullptr;
 };
 

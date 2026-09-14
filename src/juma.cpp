@@ -150,7 +150,20 @@ void Juma::parseLine(char* line) {
     const bool wasAuto  = st_.autoSel;
     const uint8_t wasBand = st_.band;
 
-    if (!jumaParseStatus(line, st_)) { badLines_++; return; }
+    if (!jumaParseStatus(line, st_)) {
+        badLines_++;
+        // Keep it if it reads as text. Power-up banners look like
+        // "Juma PA-100D V4.00a"; a wrong baud rate produces bytes that do
+        // not, and those must not be mistaken for one.
+        uint8_t printable = 0, total = 0;
+        for (const char* c = line; *c && total < sizeof(banner_); c++, total++)
+            if (*c >= 32 && *c < 127) printable++;
+        if (total >= 4 && printable == total) {
+            strncpy(banner_, line, sizeof(banner_) - 1);
+            banner_[sizeof(banner_) - 1] = '\0';
+        }
+        return;
+    }
     st_.lastRxMs = millis();
     rxLines_++;
 
@@ -170,6 +183,12 @@ void Juma::parseLine(char* line) {
             dbg("pa: band select %c -> %c", wasAuto ? 'A' : 'M',
                 st_.autoSel ? 'A' : 'M');
     }
+}
+
+void Juma::bannerCopy(char* out, size_t cap) const {
+    Lock lk(mtx_);
+    strncpy(out, banner_, cap - 1);
+    out[cap - 1] = '\0';
 }
 
 void Juma::hexTail(char* out, size_t cap) const {

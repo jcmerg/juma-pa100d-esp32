@@ -97,6 +97,11 @@ static void test_edge_cases() {
           "field 1 neither O nor S -> rejected");
     CHECK(!parse("", st), "empty line -> rejected");
     CHECK(!parse("Juma PA-100D V4.00a", st), "boot message -> rejected");
+    // Nothing in the parser knows a model name - other units announce
+    // themselves differently, and all of them must fail the same way.
+    CHECK(!parse("RS-928 V1.05q", st),        "clone banner -> rejected");
+    CHECK(!parse("Juma PA1000 V1.65", st),    "PA1000 banner -> rejected");
+    CHECK(!parse("", st),                     "empty line -> rejected");
 
     // Firmware that appends further fields must not block everything.
     CHECK(parse("O:A:T:C: 5:1:1.0:14.09: 8.1: 27.2: 26:0: 0:XX", st),
