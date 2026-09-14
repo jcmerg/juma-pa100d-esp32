@@ -12,6 +12,7 @@
 #include <ESPmDNS.h>
 #include <ArduinoOTA.h>
 #include <esp_task_wdt.h>
+#include <esp_wifi.h>          // esp_wifi_get_ps() for the debug trace
 #include "config.h"
 #include "juma.h"
 #include "tci.h"
@@ -268,7 +269,31 @@ void setup() {
     consoleBegin();
 }
 
+// Loop timing, evaluated only while 'debug 1' is on. Everything - web server,
+// console, PA link - runs from this one loop, so a single blocking call shows
+// up as the worst case here. That is the number worth watching.
+static void debugTick(uint32_t startedUs) {
+    static uint32_t worstUs = 0, sumUs = 0, loops = 0, lastAt = 0;
+    if (!dbgOn()) { worstUs = sumUs = loops = 0; lastAt = millis(); return; }
+
+    uint32_t us = micros() - startedUs;
+    if (us > worstUs) worstUs = us;
+    sumUs += us;
+    loops++;
+    if (millis() - lastAt < 5000) return;
+    lastAt = millis();
+
+    wifi_ps_type_t ps = WIFI_PS_NONE;
+    esp_wifi_get_ps(&ps);
+    dbg("loop: %lu runs, avg %lu us, worst %lu us | RSSI %d dBm, ps %d | heap %u",
+        (unsigned long)loops, (unsigned long)(sumUs / (loops ? loops : 1)),
+        (unsigned long)worstUs, (int)WiFi.RSSI(), (int)ps,
+        (unsigned)ESP.getFreeHeap());
+    worstUs = sumUs = loops = 0;
+}
+
 void loop() {
+    uint32_t startedUs = micros();
     esp_task_wdt_reset();
     ArduinoOTA.handle();
     juma.loop();
@@ -277,4 +302,5 @@ void loop() {
     consoleLoop();
     wifiSupervise();
     bandControl();
+    debugTick(startedUs);
 }

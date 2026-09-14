@@ -1,4 +1,5 @@
 #include "web.h"
+#include "console.h"
 #include "config.h"
 #include "juma.h"
 #include "tci.h"
@@ -309,12 +310,25 @@ void webBegin() {
         // there for seconds without buttons or gauges.
         http.sendHeader("Cache-Control", "no-store");
         http.sendHeader("Content-Encoding", "gzip");
+        uint32_t t0 = millis();
         http.send_P(200, "text/html; charset=utf-8",
                     (PGM_P)INDEX_HTML_GZ, INDEX_HTML_GZ_LEN);
+        // Time spent *here* is the device pushing bytes into the socket. If
+        // this is short and the browser still waits, the delay is on the
+        // radio link, not in the firmware.
+        if (dbgOn()) {
+            uint32_t ms = millis() - t0;
+            dbg("web: / %u B in %lu ms (%lu kB/s), RSSI %d dBm",
+                (unsigned)INDEX_HTML_GZ_LEN, (unsigned long)ms,
+                (unsigned long)(INDEX_HTML_GZ_LEN / (ms ? ms : 1)), (int)WiFi.RSSI());
+        }
     });
     http.on("/api/state", HTTP_GET, []() {
+        uint32_t t0 = millis();
         buildState();
         http.send(200, "application/json", stateJson);
+        if (dbgOn()) dbg("web: /api/state %u B in %lu ms", (unsigned)stateLen,
+                         (unsigned long)(millis() - t0));
     });
     http.on("/api/config", HTTP_POST, onConfig);
     // otherwise the core logs an [E] "handler not found" on every page load
@@ -350,7 +364,14 @@ void webLoop() {
         lastPush = millis();
         if (wsSrv.connectedClients()) {
             buildState();
+            uint32_t t0 = millis();
             wsSrv.broadcastTXT(stateJson, stateLen);
+            // A client that does not read blocks the write for up to
+            // WEBSOCKETS_TCP_TIMEOUT - and with it the whole main loop.
+            uint32_t ms = millis() - t0;
+            if (dbgOn() && ms > 20)
+                dbg("ws: broadcast to %u clients took %lu ms",
+                    wsSrv.connectedClients(), (unsigned long)ms);
         }
     }
 }

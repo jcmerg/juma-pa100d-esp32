@@ -16,6 +16,7 @@ uint32_t wifiRoamCount();
 int32_t  wifiRssiAvg();
 #include "bands.h"
 #include <Arduino.h>
+#include <stdarg.h>
 #include <WiFi.h>
 
 static WiFiServer telnet(TELNET_PORT);
@@ -63,6 +64,10 @@ static uint8_t len = 0;
 // Set by 'quit': the session is gone, do not write a new prompt into it.
 static bool closed = false;
 
+// 'debug 1'. Deliberately not persisted: tracing belongs to a session
+// somebody is watching, not to the next twelve months of operation.
+static bool dbgFlag = false;
+
 static void help() {
     io->println(F(
         "\nCommands:\n"
@@ -88,6 +93,7 @@ static void help() {
         "  pa <cmd>            raw command to the PA, e.g.  pa =R\n"
         "  raw                 last status line from the PA\n"
         "  quit                close the telnet session\n"
+        "  debug <0|1>         trace timings (web, loop, Wi-Fi) - not stored\n"
         "  help"));
 }
 
@@ -99,8 +105,12 @@ static void show() {
     io->printf("Wi-Fi     SSID '%s'  password %s\n",
                   cfg.ssid.c_str(), cfg.pass.length() ? "set" : "-");
     if (WiFi.status() == WL_CONNECTED)
-        io->printf("          connected, IP %s, RSSI %d dBm (avg %d)\n",
-                      WiFi.localIP().toString().c_str(), WiFi.RSSI(), (int)wifiRssiAvg());
+        // Which AP, not just how strong: on one SSID with several APs the
+        // BSSID is the only way to tell "weak link" from "stuck on the far
+        // one" - compare it against 'scan'.
+        io->printf("          connected, IP %s, RSSI %d dBm (avg %d), AP %s ch %d\n",
+                      WiFi.localIP().toString().c_str(), WiFi.RSSI(), (int)wifiRssiAvg(),
+                      WiFi.BSSIDstr().c_str(), WiFi.channel());
     else if (WiFi.getMode() & WIFI_AP)
         io->printf("          AP '%s', IP %s\n", AP_SSID,
                       WiFi.softAPIP().toString().c_str());
@@ -162,8 +172,9 @@ static void scan() {
     int n = WiFi.scanNetworks();
     if (n <= 0) { io->println(F("nothing found\n")); return; }
     for (int i = 0; i < n; i++) {
-        io->printf("  %-32s %4d dBm  Ch %2d  %s\n",
-                      WiFi.SSID(i).c_str(), WiFi.RSSI(i), WiFi.channel(i),
+        io->printf("  %-24s %-17s %4d dBm  Ch %2d  %s\n",
+                      WiFi.SSID(i).c_str(), WiFi.BSSIDstr(i).c_str(),
+                      WiFi.RSSI(i), WiFi.channel(i),
                       WiFi.encryptionType(i) == WIFI_AUTH_OPEN ? "open" : "encrypted");
     }
     io->println();
@@ -193,6 +204,13 @@ static void dispatch(char* s) {
         } else {
             io->println(F("'quit' only ends a telnet session"));
         }
+        return;
+    }
+
+    if (!strcmp(cmd, "debug")) {
+        dbgFlag = (arg && atoi(arg) != 0);
+        io->printf("debug tracing %s (off again after a restart)\n",
+                      dbgFlag ? "on" : "off");
         return;
     }
 
@@ -343,6 +361,31 @@ static void dispatch(char* s) {
     }
 
     io->printf("unknown: '%s' - 'help' lists the commands\n", cmd);
+}
+
+bool dbgOn() { return dbgFlag; }
+
+// Trace output arrives asynchronously, in the middle of whatever is half
+// typed at the prompt. So take the input line off the screen, print the
+// trace, and put the prompt and the typed text back.
+void dbg(const char* fmt, ...) {
+    if (!dbgFlag) return;
+
+    Print* out = (tc && tc.connected()) ? (Print*)&tout : (Print*)&Serial;
+    for (uint8_t i = 0; i < len; i++) out->print(F("\b \b"));
+    out->print(F("["));
+    out->print(millis() / 1000.0f, 3);
+    out->print(F("] "));
+
+    char buf[160];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+    out->println(buf);
+
+    out->print(F("> "));
+    if (len) { line[len] = '\0'; out->print(line); }
 }
 
 void consoleBegin() {

@@ -3,7 +3,7 @@
 
 // Bump the number on every build you want to recognise on the device - that is
 // how you check what is actually running after an OTA update.
-#define FW_VERSION "1.15.5"
+#define FW_VERSION "1.16.0"
 
 // ---------------------------------------------------------------------------
 // Hardware

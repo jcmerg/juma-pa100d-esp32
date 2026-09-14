@@ -603,7 +603,29 @@ reboot              restart only
 pa <cmd>            raw command to the PA, e.g.  pa =R
 raw                 last status line from the PA
 quit                close the telnet session
+debug <0|1>         trace timings (web, loop, Wi-Fi) - not stored
 ```
+
+`debug 1` switches on the tracing at runtime — no rebuild, no flashing for a
+round of troubleshooting, and nothing running along in normal operation: every
+call site is guarded by `dbgOn()`, so an inactive trace costs one bool test.
+It is deliberately **not** persisted; a restart turns it off again.
+
+```
+[31.801] web: / 15775 B in 68 ms (231 kB/s), RSSI -67 dBm
+[35.649] loop: 2234 runs, avg 2221 us, worst 116645 us | RSSI -67 dBm, ps 0 | heap 224124
+[40.112] ws: broadcast to 2 clients took 254 ms
+```
+
+| Line | Reads as |
+|---|---|
+| `web:` | how long the **device** needed to push the page into the socket. Short here while the browser still waits means the delay is on the radio link, not in the firmware |
+| `loop:` | everything runs from one loop — a blocking call shows up as `worst`. `ps 0` is `WIFI_PS_NONE`, i.e. modem sleep is really off |
+| `ws:` | only appears above 20 ms: a browser that stops reading blocks the broadcast, and with it the loop |
+
+`show` names the access point it is on (BSSID and channel) and `scan` lists the
+BSSIDs, so on an SSID with several APs a weak link can be told apart from
+hanging on the far one.
 
 Over telnet the controller echoes itself and asks the client for character
 mode (`IAC WILL ECHO`, `IAC WILL SUPPRESS-GO-AHEAD`), so the line behaves as
