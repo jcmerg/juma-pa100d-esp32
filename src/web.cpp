@@ -320,6 +320,12 @@ static void onUpdateChunk() {
     }
 }
 
+void settingsErase() {
+    prefs.begin("juma", false);
+    prefs.clear();
+    prefs.end();
+}
+
 void webBegin() {
     noteMtx = xSemaphoreCreateMutex();
     // authenticate() only reads the Authorization header when it is

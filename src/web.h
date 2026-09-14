@@ -41,6 +41,9 @@ String sanitizeHostname(const String& in);
 
 void settingsLoad();
 void settingsSave();
+// Back to factory state: drops the whole NVS namespace, so the next start
+// comes up with the defaults and without Wi-Fi - i.e. on the fallback AP.
+void settingsErase();
 
 void webBegin();
 uint8_t webClients();   // connected dashboard browsers

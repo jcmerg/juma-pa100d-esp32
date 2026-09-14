@@ -664,6 +664,7 @@ swrhigh <value>     SWR red in the gauge from here
 swralarm <0|1>      SWR pre-warning off/on
 sel <a|m>           PA band select to automatic / manual
 save                save and restart
+factory yes         erase every setting and restart on the fallback AP
 reboot              restart only
 pa <cmd>            raw command to the PA, e.g.  pa =R
 raw                 last status line from the PA

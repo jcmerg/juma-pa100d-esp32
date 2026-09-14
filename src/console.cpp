@@ -109,6 +109,7 @@ static void help() {
         "  swralarm <0|1>      SWR pre-warning off/on\n"
         "  sel <a|m>           PA band select to automatic / manual\n"
         "  save                save and restart\n"
+        "  factory yes         erase every setting and restart\n"
         "  reboot              restart only\n"
         "  pa <cmd>            raw command to the PA, e.g.  pa =R\n"
         "  raw                 last status line from the PA\n"
@@ -435,6 +436,25 @@ static void dispatch(char* s) {
         io->printf("STANDBY before firmware update: %s (saved)\n",
                       cfg.otaStandby ? "yes" : "no");
         return;
+    }
+
+    if (!strcmp(cmd, "factory")) {
+        // Two words on purpose: this throws away the Wi-Fi credentials, and
+        // whoever is on telnet loses the way back in the same moment.
+        if (!arg || strcmp(arg, "yes")) {
+            io->println(F("erases everything: Wi-Fi, TCI, thresholds, fixed address.\n"
+                          "The device restarts on its own AP - over telnet this is a\n"
+                          "one-way trip. Type 'factory yes' to go ahead."));
+            return;
+        }
+        io->println(F("erasing settings, restarting..."));
+        io->flush();
+        settingsErase();
+        // The Wi-Fi stack keeps its own copy of the credentials in NVS; left
+        // behind, the device would reassociate and the AP would never appear.
+        WiFi.disconnect(true, true);
+        delay(300);
+        ESP.restart();
     }
 
     if (!strcmp(cmd, "save")) {
