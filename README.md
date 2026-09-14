@@ -81,13 +81,16 @@ UART0 stays the USB console.
 
 ### Other amplifiers — untested here
 
-**RS-928.** A PA-100D clone. The hardware is reported to be practically the
-same; what differs is the firmware, and remote control is exactly the part
-that differs. It ships with v1.05q and without a bootloader, so a first update
+**RS-928.** A PA-100D clone — "the design is clearly a rip-off of the
+PA-100D", with the hardware reported as "practically the same as original".
+What differs is the firmware, and remote control is exactly the part that
+differs: the shipped firmware is "clearly based on an old or stripped-back
+version of the PA-100D code" and "doesn't have usable remote control
+facilities". It arrives as v1.05q without a bootloader, so a first update
 needs a programmer on the board rather than the serial port. With PA-100D
 firmware — the 5B4AIY V4.x builds, whose boot banner reads `Juma PA-100D
-V4.00a` — it behaves like the original and this controller talks to it like
-any PA-100D.
+V4.00a` — it is reported to behave like the original, and this controller
+would then talk to it like any PA-100D.
 
 **JUMA PA1000.** It has an RS-232 remote port too, but on the **DB9 BAND DATA
 / COM2** connector instead of a jack:
@@ -122,6 +125,12 @@ shows what it actually sends. Band numbers are the other open question: the
 mapping in `src/bands.cpp` follows the PA-100D's `=B1`…`=B9`.
 
 Reports either way are welcome.
+
+Sources, none of it tested here: the
+[RS-928 review in the OARC wiki](https://wiki.oarc.uk/rs928ampreview) and a
+[hermes-lite thread on clone firmware](https://groups.google.com/g/hermes-lite/c/breb9kSmeYc);
+the [PA1000 User Manual v1.65](https://www.jumaradio.com/juma-pa1000/JUMA%20PA1000%20User%20Manual-1.65.pdf)
+for the COM2 pinout and for the fact that it documents no protocol.
 
 ### Which pad is which?
 
