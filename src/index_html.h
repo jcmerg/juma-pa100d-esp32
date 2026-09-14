@@ -12,7 +12,7 @@
 static const char INDEX_HTML[] PROGMEM = R"HTML(
 <!doctype html><html lang="de"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>JUMA PA-100D</title><style>
+<title>JUMA PA</title><style>
 :root{--bg:#111;--card:#1e2228;--card2:#191d23;--line:#3a4049;--fg:#eee;--dim:#8b95a3;
 --ok:#00b33c;--warn:#ff9900;--bad:#e60000;--off:#595959;--acc:#0eb8c0;
 --btn:#272c34;--btn2:#2a2f37;--sw:#3a4049}
@@ -140,7 +140,7 @@ input[type=file]{padding:7px}
 <div class="alarmbar" id="ab2"><span id="abTxt"></span><button class="hbtn" id="bMute"></button></div>
 <div class="wrap">
 
-<header><h1>JUMA PA-100D</h1>
+<header><h1>JUMA PA</h1>
 <span class="pill"><span class="dot" id="dPa"></span>PA</span>
 <span class="pill"><span class="dot" id="dTci"></span>TCI <span id="tciQrg">-</span></span>
 <code id="raw"></code>
@@ -280,7 +280,7 @@ de:{bandHdr:"Band — PA meldet",abLabel:"Bandwahl per TCI",
 attHdr:"Abschwächer",
 lvlHdr:"Pegel",thHdr:"Temperatur, Lüfter, Versorgung",alHdr:"Alarme",
 tTemp:"PA Temp",tFan:"Lüfter",tVolt:"Spannung",tAmp:"Strom",tSel:"Bandwahl der PA",
-tAtt:"Abschwächer",bClear:"Alarm quittieren",alarmTitle:"JUMA PA-100D: Alarm",alarmBody:"Die Endstufe meldet: %s",bMute:"Stummschalten",bMuted:"Stumm",lSound:"Akustischer Alarm",bNotify:"Benachrichtigungen erlauben",notifyOn:"Benachrichtigungen aktiv",notifyNo:"Benachrichtigungen erlaubt der Browser nur über HTTPS. Diese Seite läuft über http://, deshalb geht es hier nicht. Der Alarmton und das Banner funktionieren unabhängig davon.",notifyDenied:"Benachrichtigungen wurden abgelehnt",soundHint:"Die PA piepst nur vor Ort. Der Browser wiederholt den Alarmton alle 5 s, bis er quittiert ist oder der Alarm weg ist. Der Ton startet erst, nachdem die Seite einmal angeklickt wurde — so will es der Browser.",vNorm:"normal",vPre:"Vorwarnung",vUnder:"Unterspannung",vHigh:"erhöht",vOver:"Überspannung",iTrip:"Trip bei %s A",
+tAtt:"Abschwächer",bClear:"Alarm quittieren",alarmTitle:"JUMA PA: Alarm",alarmBody:"Die Endstufe meldet: %s",bMute:"Stummschalten",bMuted:"Stumm",lSound:"Akustischer Alarm",bNotify:"Benachrichtigungen erlauben",notifyOn:"Benachrichtigungen aktiv",notifyNo:"Benachrichtigungen erlaubt der Browser nur über HTTPS. Diese Seite läuft über http://, deshalb geht es hier nicht. Der Alarmton und das Banner funktionieren unabhängig davon.",notifyDenied:"Benachrichtigungen wurden abgelehnt",soundHint:"Die PA piepst nur vor Ort. Der Browser wiederholt den Alarmton alle 5 s, bis er quittiert ist oder der Alarm weg ist. Der Ton startet erst, nachdem die Seite einmal angeklickt wurde — so will es der Browser.",vNorm:"normal",vPre:"Vorwarnung",vUnder:"Unterspannung",vHigh:"erhöht",vOver:"Überspannung",iTrip:"Trip bei %s A",
 cfgHdr:"Konfiguration",lHost:"Gerätename (mDNS, OTA)",lSsid:"WLAN SSID",lPass:"WLAN Passwort",phPass:"unverändert lassen",
 lTciHost:"TCI Host (SDR-Software)",lTciPort:"TCI Port",lTciOn:"TCI aktiv",lTciLost:"Bei TCI-Verlust auf Automatik der PA",tciLostHint:"Schickt nach 15 s ohne TCI ein =A. Welche Methode die PA dann nutzt, steht in ihrer eigenen Konfiguration (F-Sense, FT-817, Yaesu CAT, KX2/KX3, JUMA-TRX2) — steht sie dort auf Manual, bringt =A nichts. Ohne diesen Schalter bleibt die PA auf dem zuletzt kommandierten Band, weil =Bn sie von A auf M schaltet.",
 bSave:"Speichern & neu starten",lFw:"Firmware-Update",bUpload:"Hochladen",
@@ -301,7 +301,7 @@ nTcidis:"TCI nicht verbunden",nTciauto:"TCI weg — PA auf eigene Bandwahl (=A) 
 nTcinofreq:"TCI verbunden, aber noch keine QRG empfangen",
 
 nPaoff:"PA antwortet nicht",
-nUnsupported:"QRG %s — die PA-100D deckt das Band nicht ab, Band bleibt unverändert",
+nUnsupported:"QRG %s — die PA deckt das Band nicht ab, Band bleibt unverändert",
 nBandok:"Band folgt TCI: %s",
 nBandset:"Band umgeschaltet: %s"},
 
@@ -309,7 +309,7 @@ en:{bandHdr:"Band — PA reports",abLabel:"Band select via TCI",
 attHdr:"Attenuator",
 lvlHdr:"Levels",thHdr:"Temperature, fan, supply",alHdr:"Alarms",
 tTemp:"PA temp",tFan:"Fan",tVolt:"Voltage",tAmp:"Current",tSel:"PA band select",
-tAtt:"Attenuator",bClear:"Clear alarm",alarmTitle:"JUMA PA-100D: alarm",alarmBody:"The amplifier reports: %s",bMute:"Mute",bMuted:"Muted",lSound:"Audible alarm",bNotify:"Enable notifications",notifyOn:"Notifications active",notifyNo:"Browsers only allow notifications over HTTPS. This page runs over http://, so it cannot work here. The alarm tone and banner work regardless.",notifyDenied:"Notifications were denied",soundHint:"The PA only beeps locally. The browser repeats the alarm tone every 5 s until acknowledged or the alarm clears. Sound starts only after the page has been clicked once — browser policy.",vNorm:"normal",vPre:"pre-limit",vUnder:"under-voltage",vHigh:"elevated",vOver:"over-voltage",iTrip:"trip at %s A",
+tAtt:"Attenuator",bClear:"Clear alarm",alarmTitle:"JUMA PA: alarm",alarmBody:"The amplifier reports: %s",bMute:"Mute",bMuted:"Muted",lSound:"Audible alarm",bNotify:"Enable notifications",notifyOn:"Notifications active",notifyNo:"Browsers only allow notifications over HTTPS. This page runs over http://, so it cannot work here. The alarm tone and banner work regardless.",notifyDenied:"Notifications were denied",soundHint:"The PA only beeps locally. The browser repeats the alarm tone every 5 s until acknowledged or the alarm clears. Sound starts only after the page has been clicked once — browser policy.",vNorm:"normal",vPre:"pre-limit",vUnder:"under-voltage",vHigh:"elevated",vOver:"over-voltage",iTrip:"trip at %s A",
 cfgHdr:"Setup",lHost:"Device name (mDNS, OTA)",lSsid:"Wi-Fi SSID",lPass:"Wi-Fi password",phPass:"leave unchanged",
 lTciHost:"TCI host (SDR software)",lTciPort:"TCI port",lTciOn:"TCI enabled",lTciLost:"Fall back to the PA\u2019s own band select",tciLostHint:"Sends =A after 15 s without TCI. Which method the PA then uses is set in its own configuration (F-Sense, FT-817, Yaesu CAT, KX2/KX3, JUMA-TRX2) — if that is set to Manual, =A achieves nothing. Without this switch the PA stays on the last commanded band, because =Bn moves it from A to M.",
 bSave:"Save & restart",lFw:"Firmware update",bUpload:"Upload",
@@ -330,7 +330,7 @@ nTcidis:"TCI not connected",nTciauto:"TCI lost — PA switched back to its own b
 nTcinofreq:"TCI connected, but no frequency received yet",
 
 nPaoff:"PA not responding",
-nUnsupported:"QRG %s — the PA-100D does not cover this band, band left unchanged",
+nUnsupported:"QRG %s — the PA does not cover this band, band left unchanged",
 nBandok:"Band follows TCI: %s",
 nBandset:"Band switched: %s"}};
 

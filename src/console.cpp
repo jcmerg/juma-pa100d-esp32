@@ -20,6 +20,7 @@ int32_t  wifiRssiAvg();
 #include "bands.h"
 #include <Arduino.h>
 #include <stdarg.h>
+#include <esp_task_wdt.h>
 #include <WiFi.h>
 
 static WiFiServer telnet(TELNET_PORT);
@@ -32,10 +33,17 @@ static WiFiClient tc;
 // last possible point instead of in fifty format strings.
 class TelnetPrint : public Print {
 public:
+    // WiFiClient::write() selects with a 1 s timeout and retries ten times,
+    // so a single write to a client that stopped reading costs up to 10 s -
+    // the socket timeout does not apply, it sends with MSG_DONTWAIT. A 'show'
+    // is twenty writes, which would be well past the 20 s task watchdog. So
+    // feed the watchdog per write, and give up on a client that has gone.
     size_t write(uint8_t c) override {
         if (c == '\n' && !lastCR) tc.write('\r');
         lastCR = (c == '\r');
-        return tc.write(c);
+        size_t n = tc.write(c);
+        esp_task_wdt_reset();
+        return n;
     }
     // Print::printf() lands here - send whole runs, not byte by byte.
     size_t write(const uint8_t* b, size_t n) override {
@@ -50,6 +58,7 @@ public:
         }
         if (start < n) tc.write(b + start, n - start);
         if (n) lastCR = (b[n - 1] == '\r');
+        esp_task_wdt_reset();
         return n;
     }
     void reset() { lastCR = false; }
@@ -374,35 +383,49 @@ static void dispatch(char* s) {
 
 bool dbgOn() { return dbgFlag; }
 
+// Trace lines are queued, not written by whoever produced them. The PA task
+// calls dbg() while holding its mutex, and a write to a stalled telnet client
+// takes up to 10 s - that would stop the poll and cost the operating mode,
+// which is exactly the failure the tracing is there to investigate. Dropping
+// a line when the queue is full is the right trade: diagnostics must not
+// change what they measure.
+static const uint8_t  DBG_QN = 16;
+static const uint8_t  DBG_QL = 144;
+static QueueHandle_t  dbgQ = nullptr;
+
+// Called from the loop task only.
+static void dbgDrain() {
+    if (!dbgQ) return;
+    char buf[DBG_QL];
+    while (xQueueReceive(dbgQ, buf, 0) == pdTRUE) {
+        Print* out = (tc && tc.connected()) ? (Print*)&tout : (Print*)&Serial;
+        for (uint8_t i = 0; i < len; i++) out->print(F("\b \b"));
+        out->println(buf);
+        out->print(F("> "));
+        if (len) { line[len] = '\0'; out->print(line); }
+    }
+}
+
 // Trace output arrives asynchronously, in the middle of whatever is half
 // typed at the prompt. So take the input line off the screen, print the
 // trace, and put the prompt and the typed text back.
 void dbg(const char* fmt, ...) {
-    if (!dbgFlag) return;
+    if (!dbgFlag || !dbgQ) return;
 
-    // Called from the loop task and from the PA task, so one line at a time.
-    static SemaphoreHandle_t lock = xSemaphoreCreateMutex();
-    if (lock) xSemaphoreTake(lock, portMAX_DELAY);
+    char buf[DBG_QL];
+    int n = snprintf(buf, sizeof(buf), "[%8.3f] ", millis() / 1000.0f);
+    if (n < 0 || n >= (int)sizeof(buf)) return;
 
-    Print* out = (tc && tc.connected()) ? (Print*)&tout : (Print*)&Serial;
-    for (uint8_t i = 0; i < len; i++) out->print(F("\b \b"));
-    out->print(F("["));
-    out->print(millis() / 1000.0f, 3);
-    out->print(F("] "));
-
-    char buf[160];
     va_list ap;
     va_start(ap, fmt);
-    vsnprintf(buf, sizeof(buf), fmt, ap);
+    vsnprintf(buf + n, sizeof(buf) - n, fmt, ap);
     va_end(ap);
-    out->println(buf);
 
-    out->print(F("> "));
-    if (len) { line[len] = '\0'; out->print(line); }
-    if (lock) xSemaphoreGive(lock);
+    xQueueSend(dbgQ, buf, 0);            // full queue: drop it, never wait
 }
 
 void consoleBegin() {
+    dbgQ = xQueueCreate(DBG_QN, DBG_QL);
     io = &Serial;
     help();
     io->print(F("> "));
@@ -516,6 +539,8 @@ static void feedTelnet(uint8_t c) {
 }
 
 void consoleLoop() {
+    dbgDrain();
+
     // Telnet: exactly one client, a new one displaces the old
     if (telnet.hasClient()) {
         if (tc && tc.connected()) tc.stop();
@@ -530,7 +555,7 @@ void consoleLoop() {
         // its own echo off: IAC WILL ECHO, IAC WILL SUPPRESS-GO-AHEAD.
         static const uint8_t hello[] = { T_IAC, T_WILL, 1, T_IAC, T_WILL, 3 };
         tc.write(hello, sizeof(hello));
-        io->printf("\nJUMA PA-100D controller %s - 'help' lists the commands\n> ", FW_VERSION);
+        io->printf("\nJUMA PA controller %s - 'help' lists the commands\n> ", FW_VERSION);
     }
 
     uint16_t budget = RX_MAX_PER_LOOP;

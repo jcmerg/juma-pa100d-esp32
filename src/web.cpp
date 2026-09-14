@@ -327,21 +327,14 @@ void webBegin() {
         // there for seconds without buttons or gauges.
         http.sendHeader("Cache-Control", "no-store");
         http.sendHeader("Content-Encoding", "gzip");
-        // The server writes the body in chunks of 1436 bytes and waits up to
-        // HTTP_MAX_SEND_WAIT (5 s) for each one to be ACKed - and the whole
-        // loop waits with it. On a link with retransmissions two such chunks
-        // are enough to exceed the 5 s after which the PA leaves remote mode
-        // and falls back to STANDBY. Measured: handleClient() blocked for
-        // 10.06 s, the PA had had no command for 13.5 s, STANDBY. One second
-        // is still generous for a LAN; setTimeout works on the socket, so
-        // the copy client() returns is enough.
-        http.client().setTimeout(1);
         uint32_t t0 = millis();
-        // Sent in pieces rather than in one send_P: a write to a client on a
-        // bad link retries internally, and three slow chunks in a row were
-        // enough for the 20 s task watchdog to reboot the device - which then
-        // came back on whatever AP it found first. Between chunks the
-        // watchdog gets fed, and a client that has gone away ends it early.
+        // Sent in pieces rather than in one send_P. A write to a client on a
+        // bad link takes up to 10 s - select() with a 1 s timeout, ten
+        // retries - and no socket option shortens that, because the data goes
+        // out with MSG_DONTWAIT. Three slow chunks in a row were enough for
+        // the 20 s task watchdog to reboot the device, which then came back
+        // on whatever AP it found first. Between chunks the watchdog gets
+        // fed, and a client that has gone away ends the transfer early.
         http.setContentLength(INDEX_HTML_GZ_LEN);
         http.send(200, "text/html; charset=utf-8", "");
         const size_t STEP = 1436;
@@ -428,7 +421,16 @@ void webLoop() {
         if (wsSrv.connectedClients()) {
             buildState();
             uint32_t t0 = millis();
-            wsSrv.broadcastTXT(stateJson, stateLen);
+            // One client at a time instead of broadcastTXT(): a write to a
+            // client that stopped reading costs up to 10 s (select 1 s, ten
+            // retries, MSG_DONTWAIT - the library's TCP timeout does not
+            // reach that path). Eight such clients in one broadcast would
+            // pass the 20 s watchdog; per client the watchdog gets fed.
+            for (uint8_t i = 0; i < WEBSOCKETS_SERVER_CLIENT_MAX; i++) {
+                if (!wsSrv.clientIsConnected(i)) continue;
+                wsSrv.sendTXT(i, stateJson, stateLen);
+                esp_task_wdt_reset();
+            }
             // A client that does not read blocks the write for up to
             // WEBSOCKETS_TCP_TIMEOUT - and with it the whole main loop.
             uint32_t ms = millis() - t0;

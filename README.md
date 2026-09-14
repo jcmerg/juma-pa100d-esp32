@@ -1,6 +1,7 @@
-# JUMA PA-100D controller on an ESP32
+# JUMA PA controller on an ESP32
 
-Controls the **JUMA PA-100D** amplifier through its RS-232 port. Web dashboard
+Controls a **JUMA** amplifier through its RS-232 port — developed and tested
+with the **PA-100D**, see below for the PA1000. Web dashboard
 over Wi-Fi, automatic band selection via **TCI** (ExpertSDR, deskHPSDR, Thetis),
 OTA updates and a diagnostic console over telnet — all on an ESP32 costing a few
 euros.
@@ -8,7 +9,7 @@ euros.
 ![Dashboard](docs/dashboard-de.png)
 
 ```
-SDR software ──TCI (WebSocket)──► ESP32 ──UART2──► MAX3232 ──RS-232──► JUMA PA-100D
+SDR software ──TCI (WebSocket)──► ESP32 ──UART2──► MAX3232 ──RS-232──► JUMA PA
                                     │
                  browser ◄──HTTP :80 + WebSocket :81
 ```
@@ -77,6 +78,41 @@ Run the module **on 3.3 V**, not on 5 V.
 GPIO16/17 are the default pins of UART2 and free on WROOM modules. On **WROVER**
 the PSRAM occupies them — use e.g. 25/26 there and adjust `include/config.h`.
 UART0 stays the USB console.
+
+### JUMA PA1000 — untested
+
+The PA1000 has an RS-232 remote port too, but on the **DB9 BAND DATA / COM2**
+connector instead of a jack:
+
+| ESP32 | MAX3232 module | PA1000 COM2 (DB9) |
+|---|---|---|
+| GPIO17 (`TX2`) | TTL **TXD** | RS-232 driver output → **pin 3** (COM2 RS232 IN) |
+| GPIO16 (`RX2`) | TTL **RXD** | RS-232 receiver input → **pin 2** (COM2 RS232 OUT) |
+| GND | GND | **pin 5** |
+
+Set the **COM2 baud rate** in the PA1000 service pages to the rate in
+`include/config.h` (`JUMA_BAUD`, 115200). Note that COM2 is also the firmware
+update port, and that COM1 — the 3.5 mm jack — is for incoming band data, not
+for remote control.
+
+**Whether the protocol matches is unknown.** The PA-100D manual documents its
+remote commands in annex D; the PA1000 manual (v1.65) does not document a
+protocol at all, it only refers to a Windows remote application. Nobody here
+has a PA1000 to try it on. To find out in five minutes:
+
+```
+pa =R        # ask for a status line
+raw          # what came back
+show         # 'bytes' counts what arrived, with the last bytes as hex
+```
+
+`bytes 0` means nothing arrives — wrong pins, wrong baud rate, or remote mode
+not enabled. Bytes arriving but `lines ok 0` means the reply has a different
+format than `O:A:T:C: 5:1:1.0:14.09: 8.1: 27.2: 26:0: 0`, and the hex dump
+shows what it actually sends. Band numbers are the other open question: the
+mapping in `src/bands.cpp` follows the PA-100D's `=B1`…`=B9`.
+
+Reports either way are welcome.
 
 ### Which pad is which?
 

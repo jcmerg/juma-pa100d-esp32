@@ -5,12 +5,12 @@
 // at a band edge is not missed. Order = search order.
 struct BandRange {
     uint32_t lo, hi;
-    uint8_t  juma;      // 0 = not covered by the PA-100D
+    uint8_t  juma;      // =Bn as the PA-100D numbers them, 0 = not covered
     const char* name;
 };
 
 static const BandRange RANGES[] = {
-    // --- covered by the PA-100D ---
+    // --- covered by the PA-100D (PA1000 numbering unverified) ---
     { 1790000,   2010000,   1, "160m" },
     { 3490000,   4010000,   2, "80m"  },
     { 6990000,   7310000,   3, "40m"  },

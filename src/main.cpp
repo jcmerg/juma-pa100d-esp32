@@ -1,4 +1,4 @@
-// JUMA PA-100D controller on an ESP32.
+// JUMA PA controller on an ESP32.
 //
 //   - RS-232 to the PA via MAX3232 on UART2 (115200 8N1, commands "=X\n\r")
 //   - web dashboard over Wi-Fi (HTTP :80, WebSocket :81)
@@ -300,7 +300,7 @@ void setup() {
     Serial.begin(115200);
     delay(200);
     Serial.println();
-    Serial.println("JUMA PA-100D Controller " FW_VERSION);
+    Serial.println("JUMA PA Controller " FW_VERSION);
 
     bootCensus();
     settingsLoad();
