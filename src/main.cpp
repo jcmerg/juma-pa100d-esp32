@@ -285,8 +285,12 @@ static void wifiBegin() {
         // With modem sleep every round trip waits for the next beacon
         // (~100 ms); that made the 23 kB page take 6-20 s.
         WiFi.setSleep(false);
+        // Full transmit power. The default depends on the calibration in
+        // efuse and on the country setting, and at -74 dBm every dB counts.
+        WiFi.setTxPower(WIFI_POWER_19_5dBm);
         wifiWasUp = true;
-        log_i("Wi-Fi connected: %s, sleep off", WiFi.localIP().toString().c_str());
+        log_i("Wi-Fi connected: %s, sleep off, tx power %.1f dBm",
+              WiFi.localIP().toString().c_str(), WiFi.getTxPower() * 0.25f);
     }
 }
 

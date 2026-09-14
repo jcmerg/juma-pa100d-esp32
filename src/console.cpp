@@ -128,9 +128,10 @@ static void show() {
         // Which AP, not just how strong: on one SSID with several APs the
         // BSSID is the only way to tell "weak link" from "stuck on the far
         // one" - compare it against 'scan'.
-        io->printf("          connected, IP %s, RSSI %d dBm (avg %d), AP %s ch %d\n",
+        io->printf("          connected, IP %s, RSSI %d dBm (avg %d), AP %s ch %d, tx %.1f dBm\n",
                       WiFi.localIP().toString().c_str(), WiFi.RSSI(), (int)wifiRssiAvg(),
-                      WiFi.BSSIDstr().c_str(), WiFi.channel());
+                      WiFi.BSSIDstr().c_str(), WiFi.channel(),
+                      WiFi.getTxPower() * 0.25f);
     else if (WiFi.getMode() & WIFI_AP)
         io->printf("          AP '%s', IP %s, DHCP %s, %u client(s)\n", AP_SSID,
                       WiFi.softAPIP().toString().c_str(),
