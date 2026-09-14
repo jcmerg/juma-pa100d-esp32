@@ -79,10 +79,18 @@ GPIO16/17 are the default pins of UART2 and free on WROOM modules. On **WROVER**
 the PSRAM occupies them — use e.g. 25/26 there and adjust `include/config.h`.
 UART0 stays the USB console.
 
-### JUMA PA1000 — untested
+### Other amplifiers — untested here
 
-The PA1000 has an RS-232 remote port too, but on the **DB9 BAND DATA / COM2**
-connector instead of a jack:
+**RS-928.** A PA-100D clone. The hardware is reported to be practically the
+same; what differs is the firmware, and remote control is exactly the part
+that differs. It ships with v1.05q and without a bootloader, so a first update
+needs a programmer on the board rather than the serial port. With PA-100D
+firmware — the 5B4AIY V4.x builds, whose boot banner reads `Juma PA-100D
+V4.00a` — it behaves like the original and this controller talks to it like
+any PA-100D.
+
+**JUMA PA1000.** It has an RS-232 remote port too, but on the **DB9 BAND DATA
+/ COM2** connector instead of a jack:
 
 | ESP32 | MAX3232 module | PA1000 COM2 (DB9) |
 |---|---|---|
@@ -95,10 +103,11 @@ Set the **COM2 baud rate** in the PA1000 service pages to the rate in
 update port, and that COM1 — the 3.5 mm jack — is for incoming band data, not
 for remote control.
 
-**Whether the protocol matches is unknown.** The PA-100D manual documents its
-remote commands in annex D; the PA1000 manual (v1.65) does not document a
-protocol at all, it only refers to a Windows remote application. Nobody here
-has a PA1000 to try it on. To find out in five minutes:
+**Whether the PA1000 protocol matches is unknown.** The PA-100D manual
+documents its remote commands in annex D; the PA1000 manual (v1.65) does not
+document a protocol at all, it only refers to a Windows remote application.
+Nobody here has a PA1000 to try it on. For either amplifier, five minutes on
+the console settle it:
 
 ```
 pa =R        # ask for a status line
