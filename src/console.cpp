@@ -21,6 +21,39 @@ int32_t  wifiRssiAvg();
 static WiFiServer telnet(TELNET_PORT);
 static WiFiClient tc;
 
+// The NVT of RFC 854 wants CR LF on the wire, and once the client runs in
+// character mode its terminal stops turning a bare LF into a carriage return
+// of its own - every line of output would then walk further to the right.
+// The printf formats here all end in "\n", so the translation happens at the
+// last possible point instead of in fifty format strings.
+class TelnetPrint : public Print {
+public:
+    size_t write(uint8_t c) override {
+        if (c == '\n' && !lastCR) tc.write('\r');
+        lastCR = (c == '\r');
+        return tc.write(c);
+    }
+    // Print::printf() lands here - send whole runs, not byte by byte.
+    size_t write(const uint8_t* b, size_t n) override {
+        size_t start = 0;
+        for (size_t i = 0; i < n; i++) {
+            bool crBefore = i ? (b[i - 1] == '\r') : lastCR;
+            if (b[i] == '\n' && !crBefore) {
+                if (i > start) tc.write(b + start, i - start);
+                tc.write((const uint8_t*)"\r\n", 2);
+                start = i + 1;
+            }
+        }
+        if (start < n) tc.write(b + start, n - start);
+        if (n) lastCR = (b[n - 1] == '\r');
+        return n;
+    }
+    void reset() { lastCR = false; }
+private:
+    bool lastCR = false;
+};
+static TelnetPrint tout;
+
 // Where console output goes - set to the source for each command.
 static Print* io = &Serial;
 
@@ -151,8 +184,8 @@ static void dispatch(char* s) {
     if (!strcmp(cmd, "reboot")) { io->println(F("Restarting...")); delay(100); ESP.restart(); }
 
     if (!strcmp(cmd, "quit") || !strcmp(cmd, "exit") || !strcmp(cmd, "bye")) {
-        if (io == &tc) {
-            tc.println(F("bye"));
+        if (io == &tout) {
+            io->println(F("bye"));
             tc.flush();
             tc.stop();
             io = &Serial;
@@ -322,26 +355,66 @@ void consoleBegin() {
 
 // One character from a source into the line buffer. Serial and telnet share
 // the buffer, so do not type on both at the same time.
+// Take the typed text off the screen again, buffer and display in step.
+static void eraseLine() {
+    while (len) { len--; io->print(F("\b \b")); }
+}
+
 static void feed(uint8_t c) {
     // Telnet sends CR LF or CR NUL for Enter - the second byte must not
     // trigger a second prompt.
     static bool afterCR = false;
+    static uint8_t esc = 0;                      // 0 none, 1 after ESC, 2 in CSI
+    static char history[sizeof(line)] = "";
     bool wasCR = afterCR;
     afterCR = (c == '\r');
     if (wasCR && (c == '\n' || c == 0)) return;
 
+    // Arrow keys arrive as ESC [ A and the like. Without this the final letter
+    // would land in the line as "[A".
+    if (esc) {
+        if (esc == 1) { esc = (c == '[' || c == 'O') ? 2 : 0; return; }
+        if (c >= 0x30 && c <= 0x3F) return;      // parameter bytes
+        esc = 0;
+        if (c == 'A') {                          // up: the last command again
+            eraseLine();
+            len = (uint8_t)strlen(history);
+            memcpy(line, history, len);
+            line[len] = '\0';
+            io->print(line);
+        } else if (c == 'B') {                   // down: empty line
+            eraseLine();
+        }
+        return;
+    }
+    if (c == 27) { esc = 1; return; }
+
     if (c == '\n' || c == '\r') {
+        io->println();                           // also for an empty line
         if (len) {
             line[len] = '\0';
-            io->println();
-            dispatch(line);
+            strcpy(history, line);
+            dispatch(line);                      // dispatch cuts up the buffer
             len = 0;
         }
         if (closed) { closed = false; return; }
         io->print(F("> "));
-    } else if (c == 8 || c == 127) {            // Backspace
+    } else if (c == 8 || c == 127) {             // Backspace
         if (len) { len--; io->print(F("\b \b")); }
-    } else if (c < 32) {                        // remaining control bytes
+    } else if (c == 3) {                         // Ctrl-C: discard the line
+        len = 0;
+        io->println(F("^C"));
+        io->print(F("> "));
+    } else if (c == 21) {                        // Ctrl-U: erase the line
+        eraseLine();
+    } else if (c == 4) {                         // Ctrl-D on an empty line: quit
+        if (len) return;
+        char q[] = "quit";
+        io->println();
+        dispatch(q);
+        if (closed) { closed = false; return; }
+        io->print(F("> "));
+    } else if (c < 32) {                         // remaining control bytes
         return;                                  // (8-bit stays: SSID, password)
     } else if (len < sizeof(line) - 1) {
         line[len++] = (char)c;
@@ -391,7 +464,8 @@ void consoleLoop() {
         if (tc && tc.connected()) tc.stop();
         tc = telnet.available();
         tc.setNoDelay(true);
-        io = &tc;
+        io = &tout;
+        tout.reset();
         len = 0;
         tnState = TN_DATA;
         closed = false;
@@ -411,7 +485,7 @@ void consoleLoop() {
     if (tc && tc.connected()) {
         budget = RX_MAX_PER_LOOP;
         while (tc.available() && budget--) {
-            io = &tc;
+            io = &tout;
             feedTelnet((uint8_t)tc.read());
         }
     }

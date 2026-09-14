@@ -605,6 +605,11 @@ raw                 last status line from the PA
 quit                close the telnet session
 ```
 
+Over telnet the controller echoes itself and asks the client for character
+mode (`IAC WILL ECHO`, `IAC WILL SUPPRESS-GO-AHEAD`), so the line behaves as
+usual: backspace, cursor up for the last command, Ctrl-C discards the line,
+Ctrl-U erases it, Ctrl-D on an empty line ends the session like `quit`.
+
 `show` counts received **bytes** separately from understood lines and shows the
 last raw bytes as hex. That narrows down the wiring:
 
