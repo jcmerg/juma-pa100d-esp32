@@ -602,6 +602,7 @@ save                save and restart
 reboot              restart only
 pa <cmd>            raw command to the PA, e.g.  pa =R
 raw                 last status line from the PA
+quit                close the telnet session
 ```
 
 `show` counts received **bytes** separately from understood lines and shows the

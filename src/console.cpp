@@ -27,6 +27,9 @@ static Print* io = &Serial;
 static char line[128];
 static uint8_t len = 0;
 
+// Set by 'quit': the session is gone, do not write a new prompt into it.
+static bool closed = false;
+
 static void help() {
     io->println(F(
         "\nCommands:\n"
@@ -51,6 +54,7 @@ static void help() {
         "  reboot              restart only\n"
         "  pa <cmd>            raw command to the PA, e.g.  pa =R\n"
         "  raw                 last status line from the PA\n"
+        "  quit                close the telnet session\n"
         "  help"));
 }
 
@@ -145,6 +149,19 @@ static void dispatch(char* s) {
     if (!strcmp(cmd, "show")) { show(); return; }
     if (!strcmp(cmd, "scan")) { scan(); return; }
     if (!strcmp(cmd, "reboot")) { io->println(F("Restarting...")); delay(100); ESP.restart(); }
+
+    if (!strcmp(cmd, "quit") || !strcmp(cmd, "exit") || !strcmp(cmd, "bye")) {
+        if (io == &tc) {
+            tc.println(F("bye"));
+            tc.flush();
+            tc.stop();
+            io = &Serial;
+            closed = true;               // feed() then skips the prompt
+        } else {
+            io->println(F("'quit' only ends a telnet session"));
+        }
+        return;
+    }
 
     if (!strcmp(cmd, "raw")) {
         io->printf("'%s'\n", juma.status().raw);
@@ -305,7 +322,14 @@ void consoleBegin() {
 
 // One character from a source into the line buffer. Serial and telnet share
 // the buffer, so do not type on both at the same time.
-static void feed(char c) {
+static void feed(uint8_t c) {
+    // Telnet sends CR LF or CR NUL for Enter - the second byte must not
+    // trigger a second prompt.
+    static bool afterCR = false;
+    bool wasCR = afterCR;
+    afterCR = (c == '\r');
+    if (wasCR && (c == '\n' || c == 0)) return;
+
     if (c == '\n' || c == '\r') {
         if (len) {
             line[len] = '\0';
@@ -313,14 +337,51 @@ static void feed(char c) {
             dispatch(line);
             len = 0;
         }
+        if (closed) { closed = false; return; }
         io->print(F("> "));
     } else if (c == 8 || c == 127) {            // Backspace
         if (len) { len--; io->print(F("\b \b")); }
-    } else if (c == 0 || c == 0xFF) {           // Telnet IAC and padding bytes
-        return;
+    } else if (c < 32) {                        // remaining control bytes
+        return;                                  // (8-bit stays: SSID, password)
     } else if (len < sizeof(line) - 1) {
-        line[len++] = c;
-        io->print(c);                            // Echo
+        line[len++] = (char)c;
+        io->print((char)c);                      // Echo
+    }
+}
+
+// Telnet control sequences, RFC 854. IAC introduces a command: option
+// negotiation (WILL/WONT/DO/DONT) is three bytes, a subnegotiation runs until
+// IAC SE. Without swallowing them here their bytes land in the line buffer and
+// appear as garbage right after the login - which is exactly what a telnet
+// client sends first thing.
+enum : uint8_t {
+    T_SE = 240, T_SB = 250, T_WILL = 251, T_WONT = 252,
+    T_DO = 253, T_DONT = 254, T_IAC = 255
+};
+enum TnState : uint8_t { TN_DATA, TN_IAC, TN_OPT, TN_SUB, TN_SUB_IAC };
+static TnState tnState = TN_DATA;
+
+static void feedTelnet(uint8_t c) {
+    switch (tnState) {
+    case TN_DATA:
+        if (c == T_IAC) { tnState = TN_IAC; return; }
+        feed(c);
+        return;
+    case TN_IAC:
+        if (c == T_IAC) { tnState = TN_DATA; feed(c); return; }   // escaped 0xFF
+        if (c >= T_WILL && c <= T_DONT) { tnState = TN_OPT; return; }
+        if (c == T_SB) { tnState = TN_SUB; return; }
+        tnState = TN_DATA;                                        // two-byte command
+        return;
+    case TN_OPT:                                                  // option byte
+        tnState = TN_DATA;
+        return;
+    case TN_SUB:
+        if (c == T_IAC) tnState = TN_SUB_IAC;
+        return;
+    case TN_SUB_IAC:
+        tnState = (c == T_SE) ? TN_DATA : TN_SUB;
+        return;
     }
 }
 
@@ -332,20 +393,26 @@ void consoleLoop() {
         tc.setNoDelay(true);
         io = &tc;
         len = 0;
+        tnState = TN_DATA;
+        closed = false;
+        // We echo ourselves, so ask the client for character mode and to keep
+        // its own echo off: IAC WILL ECHO, IAC WILL SUPPRESS-GO-AHEAD.
+        static const uint8_t hello[] = { T_IAC, T_WILL, 1, T_IAC, T_WILL, 3 };
+        tc.write(hello, sizeof(hello));
         io->printf("\nJUMA PA-100D controller %s - 'help' lists the commands\n> ", FW_VERSION);
     }
 
     uint16_t budget = RX_MAX_PER_LOOP;
     while (Serial.available() && budget--) {
         io = &Serial;
-        feed((char)Serial.read());
+        feed((uint8_t)Serial.read());
     }
 
     if (tc && tc.connected()) {
         budget = RX_MAX_PER_LOOP;
         while (tc.available() && budget--) {
             io = &tc;
-            feed((char)tc.read());
+            feedTelnet((uint8_t)tc.read());
         }
     }
 
