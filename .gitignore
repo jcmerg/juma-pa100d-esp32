@@ -1,5 +1,10 @@
+.DS_Store
 .pio/
 .vscode/
-.DS_Store
+hl2io/juma_pa/build*/
+hl2io/tools/__pycache__/
+hl2io/tools/.venv/
+hl2io/tools/build/
+hl2io/tools/dist/
 platformio_local.ini
 src/index_html_gz.h
