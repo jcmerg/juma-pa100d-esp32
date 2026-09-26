@@ -745,6 +745,22 @@ Before writing, the firmware sends the PA a `=S` — `loop()` does not run while
 flashing. **Switchable** via `otastby 0`: with frequent development uploads it
 otherwise takes away the operating mode every time.
 
+### Updating the amplifier's own firmware
+
+Not this controller's job, and it cannot do it — but the procedure runs over
+the same serial line, so unplug the ESP32 for it. Two details cost an afternoon
+here and are written down nowhere else.
+
+**Getting the amplifier into the bootloader: hold OPER, then switch on.** The
+JUMA update documentation describes the button only for the transceivers, where
+it is VFO. Which button the amplifier wants is not in there at all.
+
+**The bootloader's device list is incomplete.** The amplifier's
+**dsPIC30F6014A** — device ID `0x02C3` — is missing from the XML that ships
+with the Ingenia dsPIC bootloader, and without an entry the flash never starts.
+Add it at the end of that XML; it is not the same as the plain 6014, whose
+bootloader area begins at `0x017E00` instead of `0x017D00`.
+
 ---
 
 ## Development
