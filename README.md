@@ -93,8 +93,8 @@ PA-100D firmware — the 5B4AIY V4.x builds, boot banner `Juma PA-100D V4.00a` �
 it behaves like an original and this controller drives it like any PA-100D.
 Tested here.
 
-**Its 3.5 mm jack is wired the other way round** — RS-232 and PTT both. Mirror
-the table above:
+**Its jacks are wired the other way round** — tip and ring swap over, sleeve
+stays ground. For the RS-232 port that means mirroring the table above:
 
 | ESP32 | MAX3232 module | RS-928 (3.5 mm jack) |
 |---|---|---|
@@ -103,7 +103,13 @@ the table above:
 | 3V3 | VCC | — |
 | GND | GND | **sleeve** |
 
-Getting it wrong costs nothing but silence — `bytes 0` on the console.
+Getting that wrong costs nothing but silence — `bytes 0` on the console.
+
+**The PTT jack is swapped the same way**: what a PA-100D carries on the tip
+sits on the ring here, and the other way round. This controller never touches
+that line, so it costs you nothing here — but it decides whether the amplifier
+keys when you wire it to the radio, and it is worth checking before the first
+transmission rather than after.
 
 **JUMA PA1000.** It has an RS-232 remote port too, but on the **DB9 BAND DATA
 / COM2** connector instead of a jack:
