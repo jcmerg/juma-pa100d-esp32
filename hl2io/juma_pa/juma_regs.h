@@ -10,17 +10,19 @@
 #pragma once
 
 // --- Being found by the SDR software --------------------------------------
-// deskHPSDR does not send the transmit frequency to a board it has not
-// recognised. It looks for a PCA9536 at I2C 0x41, and failing that reads
-// register 33 from the Pico at 0x1D and expects 0xEF; only then does it start
-// writing REG_TX_FREQ. Without the answer it prints "No Hermes Lite 2 with IO
-// board detected. No action." and the band never follows - which is exactly
-// what happened here until the reason was found in its source.
+// Some SDR software will not send the transmit frequency to a board it has not
+// recognised. deskHPSDR looks for the PCA9536 at I2C 0x41 and expects four
+// bytes of 0xF1, which a real IO board answers in hardware; failing that it
+// reads register 33 from the Pico at 0x1D and expects 0xEF.
 //
-// Answering is intended rather than a trick: the comment beside that code says
-// it is there "so you can use N2ADRs firmware code base for your own projects
-// without buying the IO Board". Register 34 is read afterwards as a low-pass
-// filter bitmask, and this board has no such filter, so it stays zero.
+// On an IO board this answer changes nothing - 0x41 has already done the job.
+// It is here for a board built without the PCA9536, which is what the comment
+// beside that code has in mind: "so you can use N2ADRs firmware code base for
+// your own projects without buying the IO Board".
+//
+// Register 34 is read afterwards as a low-pass filter bitmask and stays zero.
+// That is correct rather than missing: the filter board is switched by the
+// HL2's own gateware, and the Pico cannot read its state.
 #define REG_LPF_DETECT      33    // read as 0xEF -> "a Pico is here"
 #define REG_LPF_STATUS      34    // filter bitmask; none here, so 0
 #define LPF_DETECT_MAGIC    0xEF

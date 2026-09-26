@@ -536,36 +536,40 @@ Alarm bits, from the PA: 0 high SWR · 1 over-current · 2 high temperature ·
 ## Being found by the SDR software
 
 The board only follows the band if the SDR software sends it the transmit
-frequency, and at least one program will not do that until it has recognised
-the board. deskHPSDR looks for a PCA9536 at I2C **0x41**, and failing that reads
-**register 33** from the Pico at 0x1D and expects **0xEF**. Only then does it
-start writing `REG_TX_FREQ`. Without that answer it prints
-
-```
-No Hermes Lite 2 with IO board detected. No action.
-```
-
-and nothing downstream can work — the firmware sits there with `want_band = 0`
-and waits for a frequency that is never sent.
-
-This cost an evening here, and the symptom pointed everywhere but at the cause:
-band following simply did nothing, while the radio answered discovery, the
-registers read perfectly and `REG_TX_FREQ` stayed on the one value that had
-arrived when the SDR software started. 150 s of watching it, with no failed
-reads at all, is what finally made it obvious that nothing was being sent.
-
-So the firmware answers: register 33 reads as `0xEF`. Register 34 is read
-afterwards as a low-pass filter bitmask and stays zero, which that software
-displays as "OFF" — correct, this board has no such filter.
-
-Answering is what the author intended rather than a trick on him; the comment
-beside that code says it is there
+frequency, and some software will not do that until it has recognised the
+board. deskHPSDR looks for the PCA9536 at I2C **0x41** and expects four bytes
+of `0xF1`; an N2ADR IO board answers that in hardware, with or without firmware
+running. Failing that it reads **register 33** from the Pico at 0x1D and expects
+**0xEF**, and that is the path for a board built without the PCA9536 — the
+comment beside that code says it is there
 
 > so you can use N2ADRs firmware code base for your own projects without buying
 > the IO Board for the HL2
 
-deskHPSDR also has **Radio → HL2 Force IO Board**, which skips the detection
-altogether and is the way to test this without reflashing.
+So this firmware answers register 33 with `0xEF`. On a real IO board it changes
+nothing, because 0x41 has already done the job; it is there for the home-built
+case. Register 34 is read afterwards as a low-pass filter bitmask and stays
+zero, which deskHPSDR shows as "OFF". That is correct and not a gap: the
+low-pass filter board is switched by the HL2's own gateware, and the board
+documentation is explicit that "the IO board will not conflict with or control
+the filter board". The Pico cannot read its state, so it reports none rather
+than deriving a plausible-looking guess and passing it off as a measurement.
+
+deskHPSDR also has **Radio → HL2 Force IO Board**, which skips detection
+altogether.
+
+### If the band does not follow
+
+Check which frequency the software is actually sending. deskHPSDR sends
+`vfo[txvfo]` — the **transmit** VFO, not the one being listened to. In split, or
+after changing band on the receiving VFO alone, the transmit frequency does not
+move, so neither does the filter, and everything downstream is behaving
+correctly while appearing not to.
+
+That is worth knowing before suspecting anything else: it cost an evening here.
+The register held one unchanging value through 150 s of watching with not a
+single failed read, and the reason was on screen the whole time — 14.074 above,
+7.170 below.
 
 ## One program at a time on the bridge
 
