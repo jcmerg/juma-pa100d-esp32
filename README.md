@@ -82,18 +82,28 @@ GPIO16/17 are the default pins of UART2 and free on WROOM modules. On **WROVER**
 the PSRAM occupies them — use e.g. 25/26 there and adjust `include/config.h`.
 UART0 stays the USB console.
 
-### Other amplifiers — untested here
+### Other amplifiers
 
-**RS-928.** A PA-100D clone — "the design is clearly a rip-off of the
-PA-100D", with the hardware reported as "practically the same as original".
-What differs is the firmware, and remote control is exactly the part that
-differs: the shipped firmware is "clearly based on an old or stripped-back
-version of the PA-100D code" and "doesn't have usable remote control
-facilities". It arrives as v1.05q without a bootloader, so a first update
-needs a programmer on the board rather than the serial port. With PA-100D
-firmware — the 5B4AIY V4.x builds, whose boot banner reads `Juma PA-100D
-V4.00a` — it is reported to behave like the original, and this controller
-would then talk to it like any PA-100D.
+**RS-928 — works, with one wiring trap.** A PA-100D clone whose hardware is
+"practically the same as original"; what differs is the firmware. As shipped it
+runs v1.05q, which has no usable remote control and no bootloader: the first
+update goes in over ICSP with a programmer on the board, bootloader included,
+and only after that does the serial port work for updates. Carrying
+PA-100D firmware — the 5B4AIY V4.x builds, boot banner `Juma PA-100D V4.00a` —
+it behaves like an original and this controller drives it like any PA-100D.
+Tested here.
+
+**Its 3.5 mm jack is wired the other way round** — RS-232 and PTT both. Mirror
+the table above:
+
+| ESP32 | MAX3232 module | RS-928 (3.5 mm jack) |
+|---|---|---|
+| GPIO17 (`TX2`, U2TXD) | TTL **TXD** | RS-232 driver output → **ring** |
+| GPIO16 (`RX2`, U2RXD) | TTL **RXD** | RS-232 receiver input → **tip** |
+| 3V3 | VCC | — |
+| GND | GND | **sleeve** |
+
+Getting it wrong costs nothing but silence — `bytes 0` on the console.
 
 **JUMA PA1000.** It has an RS-232 remote port too, but on the **DB9 BAND DATA
 / COM2** connector instead of a jack:
@@ -112,8 +122,7 @@ for remote control.
 **Whether the PA1000 protocol matches is unknown.** The PA-100D manual
 documents its remote commands in annex D; the PA1000 manual (v1.65) does not
 document a protocol at all, it only refers to a Windows remote application.
-Nobody here has a PA1000 to try it on. For either amplifier, five minutes on
-the console settle it:
+Nobody here has a PA1000 to try it on. Five minutes on the console settle it:
 
 ```
 pa =R        # ask for a status line
@@ -129,7 +138,7 @@ mapping in `src/bands.cpp` follows the PA-100D's `=B1`…`=B9`.
 
 Reports either way are welcome.
 
-Sources, none of it tested here: the
+Sources — the RS-928 background, and the PA1000 entry that is untested here: the
 [RS-928 review in the OARC wiki](https://wiki.oarc.uk/rs928ampreview) and a
 [hermes-lite thread on clone firmware](https://groups.google.com/g/hermes-lite/c/breb9kSmeYc);
 the [PA1000 User Manual v1.65](https://www.jumaradio.com/juma-pa1000/JUMA%20PA1000%20User%20Manual-1.65.pdf)
