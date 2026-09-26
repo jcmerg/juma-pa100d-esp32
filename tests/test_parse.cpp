@@ -155,12 +155,49 @@ static void test_bands() {
     CHECK(!std::strcmp(bandName(0), "-"),    "bandName(0)");
 }
 
+// The Pico firmware for the HL2 IO board (hl2io/juma_pa) puts the PA's status
+// line on its USB port as the 'raw=' field of a telemetry line, with the blanks
+// taken out so the whole line stays space separated key=value. That only holds
+// up if a blank-stripped line parses to exactly the same thing - otherwise a
+// consumer on the PC quietly reads different values than the board did.
+static void test_blanks_are_not_information() {
+    printf("A status line without its blanks parses the same\n");
+    const char* lines[] = {
+        "O:A:T:C: 5:1:1.0:14.09: 8.1: 27.2: 26:0: 0",
+        "S:M:R:F:10:4:2.9:13.10:10.4: 96.0:147:3: A",
+        "O:M:R:C: 3:2:1.4:13.66: 0.0:  0.0: 24:1: 0",
+    };
+    for (const char* src : lines) {
+        char stripped[160];
+        size_t o = 0;
+        for (const char* c = src; *c && o < sizeof(stripped) - 1; c++)
+            if (*c != ' ') stripped[o++] = *c;
+        stripped[o] = '\0';
+
+        JumaStatus a, b;
+        CHECK(parse(src, a), "'%s' should parse", src);
+        CHECK(parse(stripped, b), "'%s' should parse", stripped);
+        CHECK(a.operate == b.operate && a.autoSel == b.autoSel &&
+              a.tx == b.tx && a.celsius == b.celsius,
+              "flags differ for '%s'", stripped);
+        CHECK(a.band == b.band && a.gain == b.gain && a.fan == b.fan,
+              "band/gain/fan differ for '%s'", stripped);
+        CHECK(feq(a.swr, b.swr) && feq(a.volts, b.volts) &&
+              feq(a.amps, b.amps) && feq(a.watts, b.watts),
+              "measurements differ for '%s'", stripped);
+        CHECK(a.temp == b.temp, "temp %d vs %d for '%s'", a.temp, b.temp, stripped);
+        CHECK(a.alarms == b.alarms, "alarms %02X vs %02X for '%s'",
+              a.alarms, b.alarms, stripped);
+    }
+}
+
 int main() {
     test_manual_example();
     test_standby_variant();
     test_alarms_are_hex();
     test_edge_cases();
     test_bands();
+    test_blanks_are_not_information();
     printf("\n%d checks, %d failures\n", checks, fails);
     return fails ? 1 : 0;
 }

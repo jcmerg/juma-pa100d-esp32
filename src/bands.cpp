@@ -40,7 +40,7 @@ static const BandRange* find(uint32_t hz) {
 
 uint8_t bandFromHz(uint32_t hz) {
     const BandRange* r = find(hz);
-    return r ? r->juma : BAND_NONE;
+    return r ? r->juma : (uint8_t)BAND_NONE;
 }
 
 const char* bandNameFromHz(uint32_t hz) {
