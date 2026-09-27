@@ -714,7 +714,8 @@ def try_saved(cfg, settle=None):
 
 
 def open_link(args, cfg):
-    """Command line first, then the remembered address, then a broadcast.
+    """Command line first, then a USB cable, then the remembered address,
+    then a broadcast.
 
     Says out loud what it tried. Started from an icon this goes to the
     launcher's log, and it is the only way to tell a radio that is switched off
@@ -724,6 +725,18 @@ def open_link(args, cfg):
         return jl.UsbLink(args.usb)
     if args.hl2:
         return jl.Hl2Link(args.hl2, args.port, settle=args.settle)
+
+    # Before the remembered address, not after it: the point of preferring the
+    # cable is to keep the HL2's I2C bridge free, and a remembered address would
+    # otherwise win every time the cable happens to be plugged in.
+    if not args.no_usb:
+        link = jl.UsbLink.find()
+        if link:
+            say("connected over USB: %s" % link.port)
+            remember(cfg, "usb", link.port)
+            return link
+        if jl.UsbLink.ports():
+            say("a Pico is on USB but did not answer - trying the network")
 
     say("local addresses: %s" % (jl.Hl2Link.local_addresses() or "none"))
     if cfg.get("hl2") or cfg.get("usb"):
@@ -794,7 +807,10 @@ def main():
         return 1
     ap = argparse.ArgumentParser(description="JUMA PA control via the HL2 IO board")
     ap.add_argument("--hl2", metavar="IP", help="the Hermes Lite 2's address")
-    ap.add_argument("--port", type=int, default=1024, help="its command port")
+    ap.add_argument("--port", type=int, default=jl.CMD_PORT,
+                    help="its command port")
+    ap.add_argument("--no-usb", action="store_true",
+                    help="do not look for a Pico on USB, go over the HL2")
     ap.add_argument("--usb", metavar="DEV", help="the Pico's serial port instead")
     ap.add_argument("--settle", type=float, default=None,
                     help="seconds between commands to the HL2 (default %.3f)"

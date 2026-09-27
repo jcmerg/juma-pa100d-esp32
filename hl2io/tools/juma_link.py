@@ -672,6 +672,55 @@ class UsbLink:
     defaults.
     """
 
+    # The Pico's USB identity. Raspberry Pi's vendor id; the product id is
+    # whatever the SDK's stdio_usb hands out, so only the vendor is matched.
+    # Matching it is what keeps a probe off a GPS or a modem: those get neither
+    # an open nor a written line.
+    PICO_VID = 0x2E8A
+
+    @staticmethod
+    def ports():
+        """Serial ports that could be a Pico running this firmware."""
+        try:
+            from serial.tools import list_ports
+        except ImportError:
+            return []
+        out = []
+        for p in list_ports.comports():
+            if getattr(p, "vid", None) == UsbLink.PICO_VID:
+                out.append(p.device)
+        return out
+
+    @staticmethod
+    def find(timeout=2.5):
+        """The first port that answers as this firmware, or None.
+
+        Worth preferring over the HL2's I2C bridge whenever the cable is there:
+        the bridge is shared with the radio's own traffic, and every command
+        that goes over it is a command the gateware's filter board write can be
+        dropped behind. Over USB the watching costs the bus nothing.
+
+        The proof asked for is a telemetry line. An open alone proves nothing -
+        any CDC device opens - and the firmware may have come up in proxy mode,
+        which the constructor steps out of.
+        """
+        for dev in UsbLink.ports():
+            link = None
+            try:
+                link = UsbLink(dev)
+                end = time.time() + timeout
+                while time.time() < end:
+                    link.pump()
+                    if link.saw_firmware:
+                        trace("USB: %s answered" % dev)
+                        return link
+                trace("USB: %s opened but said nothing in %.1f s" % (dev, timeout))
+            except (LinkError, OSError) as e:
+                trace("USB: %s - %s" % (dev, e))
+            if link:
+                link.close()
+        return None
+
     def __init__(self, port, baud=115200, timeout=0.2):
         try:
             import serial
@@ -680,6 +729,9 @@ class UsbLink:
         self.ser = serial.Serial(port, baud, timeout=timeout)
         self.port = port
         self._st = Status()
+        # Set by _take_telemetry(): a line only this firmware sends. find()
+        # waits for it rather than trusting that the port opened.
+        self.saw_firmware = False
         # Ask for the telemetry feed, and step out of proxy mode if the image
         # came up in it - but with '+' and '-', so that whatever else the mode
         # holds, the OPERATE hold in particular, is left alone.
@@ -710,6 +762,7 @@ class UsbLink:
         return changed
 
     def _take_telemetry(self, line):
+        self.saw_firmware = True
         fields = {}
         for kv in line.split()[1:]:
             if b"=" in kv:
