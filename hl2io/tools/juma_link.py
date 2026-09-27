@@ -171,17 +171,22 @@ def parse_pa_line(line, st):
     return True
 
 
-# Which port takes command packets is not something to guess at, and two
-# measurements here point in opposite directions. A discovery sent to 1024 is
-# answered, and answered FROM 1025, so the radio listens on both and the reply's
-# source port proves nothing either way - while the bundled app, which sends its
-# commands to the port discovery answered from, does get answers.
+# Port 1025, and that is not a guess: the maintainer's own tool goes out of its
+# way to avoid 1024. n2adr_ioboard.pyw replaces the discovery function wholesale
 #
-# So neither is assumed. A link tries the port it was given, then the others,
-# and keeps whichever answers for the rest of the session. A command packet is
-# 60 bytes and the radio ignores what it does not understand, so being wrong
-# once costs one datagram.
-CMD_PORT = 1024          # what a link uses when nobody says otherwise
+#     def no_port_1024_discover(ifaddr=None, verbose=2):
+#       return hermeslite.discover_by_port(ifaddr, 1025, verbose)
+#     hermeslite.discover = no_port_1024_discover
+#
+# and connects to a known address the same way, (ip, 1025). The name says the
+# intent. 1024 is where the SDR software's data stream lives, and a second
+# program on it is a second program in the way.
+#
+# Both ports answer discovery - measured on a gateware 74.2, a datagram sent to
+# 1024 is answered FROM 1025 - so the reply's source port cannot settle it
+# either. 1025 is tried first and 1024 after it, and whichever answers is kept
+# for the session, so a radio that wants the other one still works.
+CMD_PORT = 1025          # what a link uses when nobody says otherwise
 PORTS = (1025, 1024)     # everything worth trying, in the order to try it
 
 
