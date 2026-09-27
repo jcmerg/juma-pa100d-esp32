@@ -487,7 +487,6 @@ address given, so related values sit next to each other.
 | 0x5A–0x5B | `REG_JUMA_SWR100_*` | VSWR × 100, 16 bit |
 | 0x5C | `REG_JUMA_BANNER_IDX` | rw — which character of the PA's power-up banner to look at; 0 asks for its length |
 | 0x5D | `REG_JUMA_BANNER_CH` | that character, or the length at index 0 |
-| 0x5E | `REG_JUMA_SAVED` | 1 = the mode came out of flash |
 | 0x5F | `REG_JUMA_SNAP` | wo — write anything to take a snapshot, see below |
 | 0x60–0x7B | snapshot | seven stamped groups of four, see below |
 
@@ -645,21 +644,27 @@ a shifter wired straight to the Pico's pins. The divider that would have sat in
 that path is discussed under the wiring, and this is the measurement that says
 avoiding it was worth the two extra wires.
 
-## The mode is kept in flash
+## The mode is not kept
 
-`REG_JUMA_MODE` is written to the last flash sector three seconds after it
-changes — not at once, so a run of clicks costs one write, and never while the
-PA is transmitting, because the erase runs with interrupts off for tens of
-milliseconds and the receive FIFO only covers 2.7 ms at 115200.
+`REG_JUMA_MODE` comes up as the compiled `JUMA_MODE_AT_BOOT` and stays in RAM. A
+host that wants something else writes it after every start; a host reset
+(`REG_CONTROL` = 1) puts the compiled value back.
 
-A mode kept from last time wins over the one built in: it is what the operator
-chose, and the compiled value only describes a board that has never been told
-anything. `REG_JUMA_SAVED` says which of the two you are looking at. A host
-reset (`REG_CONTROL` = 1) restores the saved mode, not the compiled one — the
-same thing a power cycle gives.
+It used to be written to the last flash sector, and that is out for one reason:
+an erase runs with interrupts off for tens of milliseconds, and during that the
+Pico cannot serve its I2C slave, so the RP2040 holds SCL low. The HL2's master
+has no timeout and no bus recovery — `i2c_bus2.v`, and `hermeslite_core.v` does
+not even wire up the acknowledge line — and the filter board sits on that same
+expansion bus with its own address (`HL2IOBoard/README.md`: the Pico's 0x1D is
+"distinct from the filter board I2C address"). One erase in the wrong moment can
+take the whole bus down, filter relays included. Seen here: nothing on the
+expansion bus answered any more, and only a power cycle of the HL2 brought it
+back - the SDR software, the Pico and the PA were all innocent and all looked
+guilty.
 
-This is what makes the OPERATE hold, the proxy and the telemetry feed settings
-rather than build options. Once the board is in the box, that matters.
+A mode that survives a power cycle is a convenience. A wedged I2C bus costs the
+station. So the OPERATE hold, the proxy and the telemetry feed are build options
+again, or something the host sets each time.
 
 
 ## Telemetry on the USB port

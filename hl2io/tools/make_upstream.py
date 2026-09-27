@@ -75,7 +75,6 @@ target_link_libraries(main
 \thardware_pwm
 \thardware_uart
 \thardware_adc
-\thardware_flash
 \tpico_i2c_slave
 \t${PROJECT_SOURCE_DIR}/../n2adr_lib/build/libhl2ioboard.a)
 """
