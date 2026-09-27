@@ -386,16 +386,17 @@ the host knows the registers.
 
 | Build | For |
 |---|---|
-| `cmake -DJUMA_HOLD_OPERATE=ON -DJUMA_TELEMETRY=ON ..` | normal operation, and what `juma_gui.py` expects over USB |
-| `… -DJUMA_PROXY=ON` instead of `-DJUMA_TELEMETRY=ON` | the USB port is the PA's serial port from power-up, for software that already speaks JUMA |
+| `cmake ..` | out of the box: follows the band, holds the PA in OPERATE, and says once a second on USB what it and the amplifier are doing |
+| `… -DJUMA_HOLD_OPERATE=OFF` | leave a STANDBY standing — for a board that is only meant to watch and follow |
+| `… -DJUMA_PROXY=ON -DJUMA_TELEMETRY=OFF` | the USB port is the PA's serial port from power-up, for software that already speaks JUMA |
 | `… -DJUMA_DEBUG=ON` as well | the bench: every line, every command, every state change |
 
-| Option | |
-|---|---|
-| `JUMA_HOLD_OPERATE` | put the PA back into OPERATE when it drops to STANDBY — three tries, 5 s apart, never while an alarm is latched, and the counter is reset by every band command, because a band change knocking it out is expected |
-| `JUMA_TELEMETRY` | one status line per second on USB |
-| `JUMA_PROXY` | the USB port carries the PA's serial traffic verbatim |
-| `JUMA_DEBUG` | the trace, and leave it off together with `JUMA_PROXY` — a trace line is something the PA would never say |
+| Option | Default | |
+|---|---|---|
+| `JUMA_TELEMETRY` | **ON** | one status line per second on USB. On by default because it answers "is this thing running" with a terminal and nothing else, which is the first question anybody has — and because `juma_gui.py` reads that line over USB |
+| `JUMA_HOLD_OPERATE` | **ON** | put the PA back into OPERATE when it drops to STANDBY — three tries, 5 s apart, never while an alarm is latched, and the counter is reset by every band command, because a band change knocking it out is expected |
+| `JUMA_PROXY` | OFF | the USB port carries the PA's serial traffic verbatim. It suppresses the telemetry line, and everything typed at the port reaches the amplifier, so it is something to ask for rather than to be given |
+| `JUMA_DEBUG` | OFF | the trace, and leave it off together with `JUMA_PROXY` — a trace line is something the PA would never say |
 
 The same defaults are restored when the host resets the board (a write of 1 to
 `REG_CONTROL`), along with the firmware's own retry counters and the frequency it

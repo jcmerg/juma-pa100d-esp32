@@ -68,30 +68,48 @@ if(JUMA_DEBUG)
 	message(STATUS "JUMA_DEBUG is ON - this image prints to USB")
 endif()
 
-# These two set what REG_JUMA_MODE holds at power-up. Both bits can also be
-# written over I2C at any time; the options only decide the state a board comes
-# up in, which is what matters when no software on the host knows the registers.
+# These set what REG_JUMA_MODE holds at power-up. Every bit can also be written
+# over I2C or the USB console at any time; the options only decide the state a
+# board comes up in - which, since the mode is no longer kept in flash, is the
+# only state it ever comes up in.
 #
-#   -DJUMA_HOLD_OPERATE=ON  put the PA back into OPERATE when it drops to
-#                           STANDBY - three tries, 5 s apart, never while an
-#                           alarm is latched.
-#   -DJUMA_TELEMETRY=ON     print one status line per second on the USB port.
+#   -DJUMA_HOLD_OPERATE=OFF stop putting the PA back into OPERATE when it drops
+#                           to STANDBY. It is on by default because holding the
+#                           amplifier ready is what this firmware is for, and
+#                           because a board in a box has nobody to switch it on:
+#                           the registers are there for software that knows them,
+#                           and most hosts do not. Three tries, 5 s apart, never
+#                           while an alarm is latched, and the counter is reset
+#                           by every band command - a band change knocking the PA
+#                           out of OPERATE is expected, not a fault.
+#   -DJUMA_TELEMETRY=OFF    stop printing the status line on the USB port. It is
+#                           on by default: a board that says once a second what
+#                           it and the amplifier are doing answers "is this
+#                           thing running" without any software on the host, and
+#                           that is the first question anybody has. The write
+#                           costs a bounded 10 ms when a host is attached and not
+#                           reading - see the timeout set below - and nothing at
+#                           all when none is.
 #   -DJUMA_PROXY=ON         the USB port becomes the PA's serial port: a program
 #                           on the PC speaks the JUMA command set straight at it.
 #                           Leave JUMA_DEBUG off for this - a trace in the stream
 #                           is something the PA would never say.
-option(JUMA_HOLD_OPERATE "Hold the PA in OPERATE from power-up" OFF)
-option(JUMA_TELEMETRY    "Print a status line per second on USB from power-up" OFF)
+option(JUMA_HOLD_OPERATE "Hold the PA in OPERATE from power-up" ON)
+option(JUMA_TELEMETRY    "Print a status line per second on USB from power-up" ON)
 option(JUMA_PROXY        "Make the USB port the PA's serial port from power-up" OFF)
 
 set(JUMA_MODE_AT_BOOT 0)
 if(JUMA_HOLD_OPERATE)
 	math(EXPR JUMA_MODE_AT_BOOT "${JUMA_MODE_AT_BOOT} + 2")
 	message(STATUS "JUMA_HOLD_OPERATE is ON - the PA is held in OPERATE")
+else()
+	message(STATUS "JUMA_HOLD_OPERATE is OFF - a STANDBY is left standing")
 endif()
 if(JUMA_TELEMETRY)
 	math(EXPR JUMA_MODE_AT_BOOT "${JUMA_MODE_AT_BOOT} + 4")
 	message(STATUS "JUMA_TELEMETRY is ON - a status line per second on USB")
+else()
+	message(STATUS "JUMA_TELEMETRY is OFF - the USB port stays quiet")
 endif()
 if(JUMA_PROXY)
 	math(EXPR JUMA_MODE_AT_BOOT "${JUMA_MODE_AT_BOOT} + 8")
