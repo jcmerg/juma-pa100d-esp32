@@ -19,7 +19,7 @@ MAGIC = 0xEF
 
 def main():
     ip = sys.argv[1] if len(sys.argv) > 1 else None
-    port = int(sys.argv[2]) if len(sys.argv) > 2 else 1025
+    port = int(sys.argv[2]) if len(sys.argv) > 2 else jl.CMD_PORT
     if not ip:
         found = jl.Hl2Link.discover(timeout=1.5)
         if not found:

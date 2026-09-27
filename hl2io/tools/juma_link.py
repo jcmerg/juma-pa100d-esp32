@@ -171,6 +171,20 @@ def parse_pa_line(line, st):
     return True
 
 
+# Which port takes command packets is not something to guess at, and two
+# measurements here point in opposite directions. A discovery sent to 1024 is
+# answered, and answered FROM 1025, so the radio listens on both and the reply's
+# source port proves nothing either way - while the bundled app, which sends its
+# commands to the port discovery answered from, does get answers.
+#
+# So neither is assumed. A link tries the port it was given, then the others,
+# and keeps whichever answers for the rest of the session. A command packet is
+# 60 bytes and the radio ignores what it does not understand, so being wrong
+# once costs one datagram.
+CMD_PORT = 1024          # what a link uses when nobody says otherwise
+PORTS = (1025, 1024)     # everything worth trying, in the order to try it
+
+
 class Radio(collections.namedtuple("Radio", "ip port mac gateware")):
     """One Hermes Lite 2 that answered.
 
@@ -190,6 +204,9 @@ def decode_discovery(data, addr):
         return None
     mac = "%02x:%02x:%02x:%02x:%02x:%02x" % struct.unpack("BBBBBB", data[3:9])
     gateware = "%d.%d" % (data[0x09], data[0x15])
+    # addr[1] is the port the reply came from, which is where this radio has a
+    # socket open - the first thing worth trying, not the last word. Hl2Link
+    # falls back to the others if it stays silent.
     return Radio(addr[0], addr[1], mac, gateware)
 
 
@@ -270,7 +287,19 @@ class Hl2Link:
     # a transmitter to run.
     SETTLE = 0.02
 
-    def __init__(self, ip, port=1024, settle=None, timeout=1.0):
+    # After a command goes unanswered, leave the bridge alone for a while
+    # instead of coming straight back. A silent bridge means it is busy with
+    # the radio's own traffic, and the gateware drops what arrives while it is
+    # busy - including its own write to the filter board. Asking harder at that
+    # moment is the one thing that cannot help.
+    #
+    # It also shortens a failed round from seconds to nothing: the first
+    # command pays the retries, the rest of the round is refused without a
+    # packet, and the window says so instead of freezing while it waits.
+    COOL_BASE = 1.0                 # doubles per consecutive failure
+    COOL_MAX  = 8.0
+
+    def __init__(self, ip, port=CMD_PORT, settle=None, timeout=1.0):
         self.ip = ip
         self.port = port
         self.settle = self.SETTLE if settle is None else settle
@@ -284,6 +313,11 @@ class Hl2Link:
         self._last_gen = None
         self.rounds = 0          # snapshots asked for
         self.retries = 0         # times a set had to be read again
+        self._cool_until = 0.0   # no packets before this
+        self._fails = 0          # consecutive unanswered commands
+        # Ports still worth trying, the one asked for first. Emptied by the
+        # first answer, so the search happens once per link and not per command.
+        self._untried = [p for p in PORTS if p != self.port]
 
     @staticmethod
     def local_addresses():
@@ -319,7 +353,7 @@ class Hl2Link:
         """
         found = []
         sources = [None] + Hl2Link.local_addresses()
-        for port in (1025, 1024):
+        for port in PORTS:
             for src in sources:
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -382,7 +416,7 @@ class Hl2Link:
         found = []
         for src in Hl2Link.local_addresses():
             net = src.rsplit(".", 1)[0]
-            for port in (1025, 1024):
+            for port in PORTS:
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 s.setblocking(False)
@@ -434,7 +468,36 @@ class Hl2Link:
 
     def _command(self, cmd4):
         """Send one command packet and return its 60-byte response."""
+        left = self._cool_until - time.time()
+        if left > 0:
+            raise LinkError("the HL2 did not answer - leaving the bridge alone "
+                            "for another %.1f s" % left)
+
         msg = bytes([0xEF, 0xFE, 0x05, 0x7F, self.CMD_BUS2 << 1]) + cmd4 + bytes(51)
+
+        # The port asked for first, then the ones not tried yet. Only the first
+        # pass pays for this: an answer empties the list.
+        while True:
+            data = self._attempt(msg)
+            if data is not None:
+                self._fails = 0
+                self._cool_until = 0.0
+                self._untried = []
+                time.sleep(self.settle)
+                return data
+            if not self._untried:
+                break
+            self.port = self._untried.pop(0)
+            trace("no answer - trying port %d" % self.port)
+
+        self._fails += 1
+        self._cool_until = time.time() + min(
+            self.COOL_MAX, self.COOL_BASE * (2 ** (self._fails - 1)))
+        raise LinkError("no answer from the HL2 at %s:%d%s"
+                        % (self.ip, self.port, local_network_hint()))
+
+    def _attempt(self, msg):
+        """Send to self.port up to three times. The 60-byte reply, or None."""
         self._drain()
         for _ in range(3):
             try:
@@ -448,10 +511,8 @@ class Hl2Link:
             if select.select([self.sock], [], [], self.timeout)[0]:
                 data, addr = self.sock.recvfrom(60)
                 if len(data) == 60 and data[0:2] == b"\xef\xfe":
-                    time.sleep(self.settle)
                     return data
-        raise LinkError("no answer from the HL2 at %s:%d%s"
-                        % (self.ip, self.port, local_network_hint()))
+        return None
 
     def write(self, reg, value):
         self._command(bytes([self.OP_WRITE, 0x80 | self.I2C_ADDR,

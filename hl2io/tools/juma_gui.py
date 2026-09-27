@@ -600,7 +600,7 @@ class Connect(tk.Frame):
 
         lab(th.L[lang]["connPort"]).grid(row=2, column=0, sticky="w")
         self.e_port = tk.Entry(self, width=8, font=th.FONT_S)
-        self.e_port.insert(0, str(cfg.get("port") or 1024))
+        self.e_port.insert(0, str(cfg.get("port") or jl.CMD_PORT))
         self.e_port.grid(row=2, column=1, sticky="w", padx=6)
 
         lab(th.L[lang]["connUsb"]).grid(row=3, column=0, sticky="w", pady=(8, 0))
@@ -685,7 +685,7 @@ class Connect(tk.Frame):
                 link = jl.UsbLink(usb)
                 remember(self.cfg, "usb", usb)
             elif ip:
-                port = int(self.e_port.get().strip() or 1024)
+                port = int(self.e_port.get().strip() or jl.CMD_PORT)
                 link = jl.Hl2Link(ip, port)
                 link.read_status()          # prove it before closing the dialog
                 remember(self.cfg, "hl2", ip, port)
@@ -705,7 +705,7 @@ def try_saved(cfg, settle=None):
         if cfg.get("kind") == "usb" and cfg.get("usb"):
             return jl.UsbLink(cfg["usb"])
         if cfg.get("hl2"):
-            link = jl.Hl2Link(cfg["hl2"], cfg.get("port") or 1024, settle=settle)
+            link = jl.Hl2Link(cfg["hl2"], cfg.get("port") or jl.CMD_PORT, settle=settle)
             link.read_status()
             return link
     except (jl.LinkError, OSError):
