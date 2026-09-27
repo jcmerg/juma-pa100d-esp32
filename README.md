@@ -643,29 +643,16 @@ to STANDBY by itself **5 s** after a remote `=O` when no more messages arrive
 
 ## The same PA from a Hermes Lite 2
 
-`hl2io/juma_pa/` holds a second controller for the same amplifier: firmware for
-the Pico on N2ADR's [Hermes Lite 2 IO board](https://github.com/jimahlstrom/HL2IOBoard).
-No ESP32, no Wi-Fi and no dashboard — the SDR software sends the transmit
-frequency to the board over I2C, the Pico sends `=Bn` over the serial port, and
-the PA's status comes back into I2C registers the host can read.
+There is a second controller for this amplifier, for the Pico on N2ADR's [Hermes
+Lite 2 IO board](https://github.com/jimahlstrom/HL2IOBoard): no ESP32, no Wi-Fi
+and no dashboard — the SDR software sends the transmit frequency to the board
+over I2C and the Pico sends `=Bn` over the serial port. It lives in its own
+repository, [hl2io-juma](https://github.com/jcmerg/hl2io-juma).
 
-The path is the one M0HPF's `m0hpf_spe` firmware takes for an SPE Expert: Pico
-UART, a MAX3232 for RS-232 levels, the amplifier's own command set. Only the
-commands differ — and three properties of the JUMA that the SPE does not have:
-the JUMA is silent until polled, its remote mode times out after 5 s, and `=Bn`
-is a manual selection that can cost it OPERATE.
-
-`src/juma_status.cpp` and `src/bands.cpp` are free of Arduino and are compiled
-into that firmware as they are. The protocol and the band edges therefore exist
-once for both controllers, and `tests/run.sh` covers them for both.
-
-That firmware also puts the PA's status on I2C registers and, if asked, on its USB
-port — either as one line per second or as the PA's serial port verbatim, so
-software that already speaks JUMA needs no changes. `hl2io/tools/juma_gui.py` is
-a small Tk window that drives it either way.
-
-See [hl2io/juma_pa/README.md](hl2io/juma_pa/README.md) for the wiring, the build
-and the register map.
+`src/juma_status.cpp` and `src/bands.cpp` are free of Arduino and are used there
+as they are, so the protocol and the band edges are decided once for both
+controllers. **This repository is where they are decided** — that one keeps a
+copy and checks it against these, and `tests/run.sh` covers them here.
 
 ---
 
@@ -822,8 +809,6 @@ like a hang but is merely a half-loaded page.
 | `tools/gzip_html.py` | compresses it at build time into `src/index_html_gz.h` |
 | `src/main.cpp` | band controller, watchdog, mDNS, wiring |
 | `tests/test_parse.cpp` | 102 checks for the status parser and band mapping |
-| `hl2io/juma_pa/` | the same PA from a Hermes Lite 2 IO board — Pico firmware |
-| `hl2io/tools/` | `juma_gui.py`, a Tk window that drives that board over the HL2 or over USB |
 
 `./tests/run.sh` runs on the host and needs no ESP32 — the status parser and the
 band mapping are deliberately free of Arduino dependencies.
