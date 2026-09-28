@@ -647,7 +647,9 @@ There is a second controller for this amplifier, for the Pico on N2ADR's [Hermes
 Lite 2 IO board](https://github.com/jimahlstrom/HL2IOBoard): no ESP32, no Wi-Fi
 and no dashboard — the SDR software sends the transmit frequency to the board
 over I2C and the Pico sends `=Bn` over the serial port. It lives in its own
-repository, [hl2io-juma](https://github.com/jcmerg/hl2io-juma).
+the `dl4jc_juma/` folder of a fork of N2ADR's board project:
+[jcmerg/HL2IOBoard, branch `dl4jc-juma`](https://github.com/jcmerg/HL2IOBoard/tree/dl4jc-juma/dl4jc_juma)
+— which is where it has to end up for a pull request anyway.
 
 `src/juma_status.cpp` and `src/bands.cpp` are free of Arduino and are used there
 as they are, so the protocol and the band edges are decided once for both
