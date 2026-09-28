@@ -646,15 +646,17 @@ to STANDBY by itself **5 s** after a remote `=O` when no more messages arrive
 There is a second controller for this amplifier, for the Pico on N2ADR's [Hermes
 Lite 2 IO board](https://github.com/jimahlstrom/HL2IOBoard): no ESP32, no Wi-Fi
 and no dashboard — the SDR software sends the transmit frequency to the board
-over I2C and the Pico sends `=Bn` over the serial port. It lives in its own
-the `dl4jc_juma/` folder of a fork of N2ADR's board project:
+over I2C and the Pico sends `=Bn` over the serial port. It lives in the
+`dl4jc_juma/` folder of a fork of N2ADR's board project:
 [jcmerg/HL2IOBoard, branch `dl4jc-juma`](https://github.com/jcmerg/HL2IOBoard/tree/dl4jc-juma/dl4jc_juma)
 — which is where it has to end up for a pull request anyway.
 
-`src/juma_status.cpp` and `src/bands.cpp` are free of Arduino and are used there
-as they are, so the protocol and the band edges are decided once for both
-controllers. **This repository is where they are decided** — that one keeps a
-copy and checks it against these, and `tests/run.sh` covers them here.
+`src/juma_status.cpp` and `src/bands.cpp` are free of Arduino, and that project
+started from them — it carries its own copies now and maintains them itself. The
+two are independent, which is worth remembering for one thing: the status format
+and the band edges belong to the **amplifier**, so a correction here leaves the
+other controller with the old table until it is corrected there as well. Nothing
+checks that.
 
 ---
 
