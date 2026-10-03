@@ -5,6 +5,10 @@
 // defined in main.cpp
 const char* resetReasonName();
 bool apDhcpRunning();
+const char* apSsid();
+bool apActive();
+uint8_t wifiLastReason();
+const char* wifiReasonText(uint8_t r);
 uint32_t bootNumber();
 uint32_t lastRunSecs();
 uint32_t wifiDropCount();
@@ -96,6 +100,8 @@ static void help() {
         "  ip dhcp             address from the network (default)\n"
         "  ip <addr> <gw> [mask] [dns]   fixed address\n"
         "  pass <secret>       set the Wi-Fi password\n"
+        "  appass <secret>     password of the fallback AP (8-63 chars)\n"
+        "  otapass [old] <new> update password - 'old' only over telnet\n"
         "  tci <host> [port]   TCI host of the SDR software (port default 50002)\n"
         "  tcien <0|1>         TCI client off/on\n"
         "  autoband <0|1>      band selection via TCI off/on\n"
@@ -133,13 +139,23 @@ static void show() {
                       WiFi.localIP().toString().c_str(), WiFi.RSSI(), (int)wifiRssiAvg(),
                       WiFi.BSSIDstr().c_str(), WiFi.channel(),
                       WiFi.getTxPower() * 0.25f);
-    else if (WiFi.getMode() & WIFI_AP)
-        io->printf("          AP '%s', IP %s, DHCP %s, %u client(s)\n", AP_SSID,
+    else if (cfg.ssid.length())
+        io->printf("          not connected - last failure: reason %u, %s\n",
+                      wifiLastReason(), wifiReasonText(wifiLastReason()));
+    else
+        io->println(F("          not connected"));
+    // Also while it lingers after the network came back.
+    if (apActive())
+        io->printf("          AP '%s', IP %s, DHCP %s, %u client(s)\n", apSsid(),
                       WiFi.softAPIP().toString().c_str(),
                       apDhcpRunning() ? "on" : "OFF - clients get no address",
                       WiFi.softAPgetStationNum());
-    else
-        io->println(F("          not connected"));
+
+    // The AP default is public anyway, so it may be shown; a password somebody
+    // chose may not - telnet is unencrypted.
+    io->printf("Passwords AP %s, update %s\n",
+                  cfg.apPass == AP_PASSWORD ? "default '" AP_PASSWORD "'" : "set",
+                  otaLocked() ? "NOT SET - updates locked ('otapass <new>')" : "set");
 
     if (cfg.staticIp && cfg.ip.length())
         io->printf("Address   fixed %s, gateway %s, mask %s%s%s\n",
@@ -298,6 +314,45 @@ static void dispatch(char* s) {
         return;
     }
 
+    if (!strcmp(cmd, "appass")) {
+        const size_t n = arg ? strlen(arg) : 0;
+        if (n < 8 || n > 63) { io->println(F("8 to 63 characters, e.g.  appass my-setup-pw")); return; }
+        cfg.apPass = arg;
+        settingsSave();
+        io->printf("AP password set (%u characters, saved) - applies the next time the AP comes up\n",
+                      (unsigned)n);
+        return;
+    }
+
+    if (!strcmp(cmd, "otapass")) {
+        // Whoever can change this can flash any firmware, and telnet asks for
+        // no login - so over telnet the current password has to come along.
+        // Only USB (physical access, which can flash anyway) and the
+        // still-locked placeholder take the new one alone.
+        const bool needOld = (io == &tout) && !otaLocked();
+        char* nw = arg;
+        if (needOld && arg) {
+            nw = strchr(arg, ' ');
+            if (nw) { *nw++ = '\0'; while (*nw == ' ') nw++; }
+            if (!nw || strcmp(arg, cfg.otaPass.c_str())) {
+                io->println(F("over telnet: otapass <current> <new> - current password wrong or missing"));
+                return;
+            }
+        }
+        const size_t n = nw ? strlen(nw) : 0;
+        if (n < 8 || strchr(nw, ' ') || !strcmp(nw, OTA_PASSWORD_PLACEHOLDER)) {
+            io->println(needOld ? F("otapass <current> <new>   - new: 8 characters or more, no blanks")
+                                : F("otapass <new>   - 8 characters or more, no blanks"));
+            return;
+        }
+        const bool wasLocked = otaLocked();
+        cfg.otaPass = nw;
+        settingsSave();
+        io->println(F("update password saved - web upload uses it now, espota after a restart"));
+        if (wasLocked) io->println(F("updates over the network unlocked"));
+        return;
+    }
+
     if (!strcmp(cmd, "ip")) {
         if (!arg) {
             io->println(F("ip dhcp   |   ip 192.168.1.50 192.168.1.1 [255.255.255.0] [dns]"));
@@ -442,7 +497,8 @@ static void dispatch(char* s) {
         // Two words on purpose: this throws away the Wi-Fi credentials, and
         // whoever is on telnet loses the way back in the same moment.
         if (!arg || strcmp(arg, "yes")) {
-            io->println(F("erases everything: Wi-Fi, TCI, thresholds, fixed address.\n"
+            io->println(F("erases everything but the update password: Wi-Fi, TCI,\n"
+                          "thresholds, fixed address, AP password.\n"
                           "The device restarts on its own AP - over telnet this is a\n"
                           "one-way trip. Type 'factory yes' to go ahead."));
             return;

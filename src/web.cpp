@@ -2,6 +2,9 @@
 #include "console.h"
 #include <esp_task_wdt.h>
 #include "config.h"
+
+// in main.cpp
+bool apActive();
 #include "juma.h"
 #include "tci.h"
 #include "bands.h"
@@ -91,6 +94,8 @@ void settingsLoad() {
     if (prefs.isKey("gw"))   cfg.gw   = prefs.getString("gw");
     if (prefs.isKey("mask")) cfg.mask = prefs.getString("mask");
     if (prefs.isKey("dns"))  cfg.dns  = prefs.getString("dns");
+    cfg.otaPass = prefs.isKey("otapass") ? prefs.getString("otapass") : String(OTA_PASSWORD);
+    cfg.apPass  = prefs.isKey("appass")  ? prefs.getString("appass")  : String(AP_PASSWORD);
     prefs.end();
 }
 
@@ -116,6 +121,8 @@ void settingsSave() {
     prefs.putString("gw",   cfg.gw);
     prefs.putString("mask", cfg.mask);
     prefs.putString("dns",  cfg.dns);
+    prefs.putString("otapass", cfg.otaPass);
+    prefs.putString("appass",  cfg.apPass);
     prefs.end();
 }
 
@@ -274,8 +281,14 @@ static void onConfig() {
 // ---------------------------------------------------------------------------
 static bool otaAuthOk = false;
 
+bool otaLocked() { return cfg.otaPass == OTA_PASSWORD_PLACEHOLDER; }
+
+static const char* OTA_LOCKED_MSG =
+    "updates locked - set an update password first: console 'otapass <new>'\n";
+
 static void onUpdateEnd() {
-    if (!http.authenticate("admin", OTA_PASS)) { http.requestAuthentication(); return; }
+    if (otaLocked()) { http.send(403, "text/plain", OTA_LOCKED_MSG); return; }
+    if (!http.authenticate("admin", cfg.otaPass.c_str())) { http.requestAuthentication(); return; }
     bool ok = otaAuthOk && !Update.hasError();
     http.sendHeader("Connection", "close");
     http.send(ok ? 200 : 500, "text/plain; charset=utf-8",
@@ -287,7 +300,7 @@ static void onUpdateChunk() {
     HTTPUpload& up = http.upload();
 
     if (up.status == UPLOAD_FILE_START) {
-        otaAuthOk = http.authenticate("admin", OTA_PASS);
+        otaAuthOk = !otaLocked() && http.authenticate("admin", cfg.otaPass.c_str());
         if (!otaAuthOk) { log_w("OTA: authentication failed"); return; }
         // Put the PA into a defined idle state - loop() no longer runs while
         // writing. Switchable, because otherwise every development flash takes
@@ -322,7 +335,9 @@ static void onUpdateChunk() {
 
 void settingsErase() {
     prefs.begin("juma", false);
+    const String ota = prefs.isKey("otapass") ? prefs.getString("otapass") : String();
     prefs.clear();
+    if (ota.length()) prefs.putString("otapass", ota);
     prefs.end();
 }
 
@@ -337,7 +352,8 @@ void webBegin() {
     // through - the browser would upload a megabyte, get a 401, prompt, and
     // upload again. This GET makes it ask beforehand.
     http.on("/update", HTTP_GET, []() {
-        if (!http.authenticate("admin", OTA_PASS)) { http.requestAuthentication(); return; }
+        if (otaLocked()) { http.send(403, "text/plain", OTA_LOCKED_MSG); return; }
+        if (!http.authenticate("admin", cfg.otaPass.c_str())) { http.requestAuthentication(); return; }
         http.send(204, "text/plain", "");
     });
 
@@ -385,7 +401,20 @@ void webBegin() {
     http.on("/api/config", HTTP_POST, onConfig);
     // otherwise the core logs an [E] "handler not found" on every page load
     http.on("/favicon.ico", HTTP_GET, []() { http.send(204, "image/x-icon", ""); });
-    http.onNotFound([]() { http.send(404, "text/plain", "not found"); });
+    http.onNotFound([]() {
+        // Captive portal: the AP's DNS sends every name here, so a phone's
+        // connectivity check (generate_204, hotspot-detect.html, ...) asks
+        // us for a path we do not have. A redirect instead of the 404 is what
+        // makes the OS open the dashboard by itself. Only for requests that
+        // came in over the AP - while it lingers after the network is back,
+        // a client in the LAN cannot reach 192.168.4.1.
+        if (apActive() && http.client().localIP() == AP_IP) {
+            http.sendHeader("Location", "http://" + AP_IP.toString() + "/");
+            http.send(302, "text/plain", "");
+            return;
+        }
+        http.send(404, "text/plain", "not found");
+    });
     http.begin();
 
     wsSrv.begin();

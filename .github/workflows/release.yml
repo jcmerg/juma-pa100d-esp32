@@ -1,0 +1,115 @@
+# Builds the firmware for every tag v*, attaches it to the GitHub release and
+# publishes the web installer on GitHub Pages.
+#
+#   git tag v1.30.0 && git push origin v1.30.0
+#
+# The tag has to match FW_VERSION in include/config.h - otherwise the device
+# would report a different version than the release it came from.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:   # build and installer only, no release
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ hashFiles('platformio.ini') }}
+
+      - run: pip install platformio
+
+      - name: Version
+        id: ver
+        run: |
+          VER=$(sed -n 's/^#define FW_VERSION "\(.*\)"/\1/p' include/config.h)
+          echo "ver=$VER" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF" == refs/tags/* && "$GITHUB_REF_NAME" != "v$VER" ]]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match FW_VERSION $VER"
+            exit 1
+          fi
+
+      # No platformio_local.ini here, so the binary carries the defaults from
+      # config.h: the public AP password, and updates over the network locked
+      # until 'otapass' sets a password on the device.
+      - name: Build
+        run: pio run
+
+      - name: Host tests
+        run: ./tests/run.sh
+
+      - name: Assemble files
+        run: |
+          VER=${{ steps.ver.outputs.ver }}
+          B=.pio/build/esp32dev
+          BOOT_APP0=~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin
+          mkdir -p site release
+          cp webflasher/index.html site/
+          cp $B/bootloader.bin $B/partitions.bin $BOOT_APP0 $B/firmware.bin site/
+          cat > site/manifest.json <<JSON
+          {
+            "name": "JUMA PA controller",
+            "version": "$VER",
+            "new_install_prompt_erase": true,
+            "builds": [{
+              "chipFamily": "ESP32",
+              "parts": [
+                {"path": "bootloader.bin", "offset": 4096},
+                {"path": "partitions.bin", "offset": 32768},
+                {"path": "boot_app0.bin",  "offset": 57344},
+                {"path": "firmware.bin",   "offset": 65536}
+              ]
+            }]
+          }
+          JSON
+          # Whole image for esptool at 0x0, and the app alone for an update
+          # through the dashboard or espota.
+          python ~/.platformio/packages/tool-esptoolpy/esptool.py --chip esp32 merge_bin \
+            -o release/juma-pa-$VER-full.bin \
+            --flash_mode keep --flash_freq keep --flash_size keep \
+            0x1000 $B/bootloader.bin 0x8000 $B/partitions.bin \
+            0xe000 $BOOT_APP0 0x10000 $B/firmware.bin
+          cp $B/firmware.bin release/juma-pa-$VER-firmware.bin
+          ls -l site release
+
+      # A release written by hand before the tag keeps its text; the files
+      # are added to it. Otherwise one is created with generated notes.
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" release/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" release/* --title "$GITHUB_REF_NAME" --generate-notes
+          fi
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4

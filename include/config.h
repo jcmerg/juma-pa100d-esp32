@@ -4,7 +4,7 @@
 
 // Bump the number on every build you want to recognise on the device - that is
 // how you check what is actually running after an OTA update.
-#define FW_VERSION "1.29.0"
+#define FW_VERSION "1.30.0"
 
 // ---------------------------------------------------------------------------
 // Hardware
@@ -71,6 +71,15 @@ static const int32_t  WIFI_ROAM_RSSI     = -75;      // dBm
 static const uint32_t WIFI_ROAM_HOLD_MS  = 60000;    // must persist this long
 static const uint32_t WIFI_ROAM_MIN_GAP  = 300000;   // at most every 5 min
 
+// While the fallback AP is up, the station side keeps trying - but each
+// attempt scans every channel and takes the AP off the air for a moment, so
+// only every minute, and never while somebody is connected to the AP.
+static const uint32_t AP_STA_RETRY_MS = 60000;
+// Once the station side is back, the AP stays open this long, and after that
+// until its last client has left - whoever just entered the password should
+// still see the result.
+static const uint32_t AP_LINGER_MS    = 60000;
+
 // Task watchdog: reboots should the main loop ever get stuck. Generously
 // dimensioned because a firmware upload spends a long time inside a single
 // handleClient() - the upload handler feeds the watchdog as well.
@@ -79,19 +88,29 @@ static const uint32_t WDT_TIMEOUT_S = 20;
 // ---------------------------------------------------------------------------
 // Network
 // ---------------------------------------------------------------------------
-static const char*    AP_SSID   = "JUMA-PA";
+// The fallback AP is called JUMA-PA-XXXX, XXXX from the end of the MAC
+// address - two controllers in one shack must not raise two APs of one name.
+static const char*    AP_SSID_PREFIX = "JUMA-PA";
 
-// Passwords for the fallback AP and for OTA updates.
-// SET YOUR OWN - either here, or without touching this file, in
-// platformio.ini:
-//   build_flags = -DAP_PASSWORD='"..."' -DOTA_PASSWORD='"..."'
+// Passwords for the fallback AP and for firmware updates. These are only the
+// defaults: both are kept in NVS and changed at runtime on the console
+// ('appass', 'otapass'), so the released binary - which everybody has - is
+// not stuck with them. Your own build can set other defaults in
+// platformio_local.ini:
+//   -DAP_PASSWORD='"..."' -DOTA_PASSWORD='"..."'
+//
+// The AP default is public on purpose, like a router's setup sticker: the AP
+// only exists while the device cannot reach its network.
 #ifndef AP_PASSWORD
-#define AP_PASSWORD  "changeme01"     // at least 8 characters
+#define AP_PASSWORD  "juma-pa-setup"  // 8 to 63 characters
 #endif
+// The update default is a placeholder, and the placeholder LOCKS updates over
+// the network - a password printed in a README protects nothing, and with it
+// anybody in the LAN could flash their own firmware. 'otapass' unlocks.
+#define OTA_PASSWORD_PLACEHOLDER "changeme"
 #ifndef OTA_PASSWORD
-#define OTA_PASSWORD "changeme"
+#define OTA_PASSWORD OTA_PASSWORD_PLACEHOLDER
 #endif
-static const char*    AP_PASS   = AP_PASSWORD;
 // Address of the fallback AP. Set explicitly rather than left to the default:
 // softAPConfig() is what stops the DHCP server, writes the address range and
 // starts it again - without it a client can associate and then wait for an
@@ -104,7 +123,6 @@ static const uint16_t WS_PORT   = 81;
 // Network name for mDNS, OTA and DHCP - a default, changeable in the web UI:
 // http://<hostname>.local/
 static const char*    HOSTNAME_DEFAULT = "juma-pa";
-static const char*    OTA_PASS    = OTA_PASSWORD;
 static const uint16_t TELNET_PORT = 23;
 
 // TCI default. TCI is not limited to ExpertSDR - deskHPSDR and others speak it

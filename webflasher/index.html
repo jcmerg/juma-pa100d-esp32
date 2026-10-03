@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JUMA PA Installer</title>
+<script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+<style>
+/* Same palette as the dashboard (src/index_html.h). */
+:root{--bg:#eef1f5;--card:#fff;--line:#d2d8e0;--fg:#161a1f;--dim:#5c6674;--acc:#0a7b82;--bad:#cc1f1a}
+@media(prefers-color-scheme:dark){:root{--bg:#111;--card:#1e2228;--line:#3a4049;--fg:#eee;--dim:#8b95a3;--acc:#0eb8c0;--bad:#e60000}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,sans-serif}
+main{max-width:720px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:8px 0 2px}.sub{color:var(--dim);margin:0 0 18px}
+h2{font-size:13px;margin:0 0 10px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+ul,ol{margin:0;padding-left:20px}li{margin:3px 0}a{color:var(--acc)}code{font-size:13px}
+esp-web-install-button button{padding:10px 20px;border:0;border-radius:6px;background:var(--acc);color:#fff;font:inherit;font-weight:600;cursor:pointer}
+.err{color:var(--bad)}.dim{color:var(--dim);font-size:13px}
+footer{color:var(--dim);font-size:12px;text-align:center;padding:4px 0 12px}
+</style></head><body><main>
+<h1>JUMA PA controller</h1>
+<p class="sub">Firmware installer · version <span id="ver">…</span></p>
+
+<section><h2>Install</h2>
+<p>Connect the ESP32 by USB and click the button, then pick its serial port.</p>
+<esp-web-install-button manifest="manifest.json">
+ <button slot="activate">Install firmware</button>
+ <span slot="unsupported" class="err">This browser has no Web Serial. Use Chrome or Edge on a desktop computer.</span>
+ <span slot="not-allowed" class="err">Web Serial needs a secure connection (https).</span>
+</esp-web-install-button>
+<p class="dim">On an update you can choose whether to erase the device. Without erasing, every setting stays, the update password included.</p>
+</section>
+
+<section><h2>Requirements</h2>
+<ul>
+<li>An ESP32 with the classic chip and 4 MB flash, e.g. ESP32-WROOM / DevKitC. ESP32-S2, -S3, -C3 and -C6 do not work.</li>
+<li>A MAX3232 level shifter between the ESP32 and the PA — see the <a href="https://github.com/jcmerg/juma-pa100d-esp32#hardware">wiring</a>.</li>
+<li>Chrome or Edge on a desktop computer.</li>
+<li>If no port appears: the USB driver for the board's serial chip, <a href="https://www.silabs.com/developer-tools/usb-to-uart-bridge-vcp-drivers">CP210x</a> or <a href="https://www.wch-ic.com/downloads/CH341SER_EXE.html">CH340</a>.</li>
+<li>If connecting fails, hold the <b>BOOT</b> button while it connects.</li>
+</ul></section>
+
+<section><h2>After installing</h2>
+<ol>
+<li>Join the Wi-Fi <code>JUMA-PA-XXXX</code>, password <code>juma-pa-setup</code>.</li>
+<li>The dashboard usually opens by itself; otherwise go to <code>http://192.168.4.1/</code>.</li>
+<li>Enter your Wi-Fi and the TCI server under the gear icon and save.</li>
+<li>The device is then at <code>http://juma-pa.local/</code>.</li>
+<li>On its console (<code>telnet juma-pa.local</code>, or the installer's “Logs &amp; console”):
+  <ul>
+  <li><code>otapass &lt;new&gt;</code> — updates over the network stay locked until you do this</li>
+  <li><code>appass &lt;new&gt;</code> — your own password for the fallback AP</li>
+  </ul></li>
+</ol>
+<p class="dim">Later updates go through the dashboard: <code>juma-pa-…-firmware.bin</code> from the <a href="https://github.com/jcmerg/juma-pa100d-esp32/releases/latest">latest release</a>.</p>
+</section>
+
+<footer><a href="https://github.com/jcmerg/juma-pa100d-esp32">GitHub</a> · MIT licence</footer>
+</main><script>
+fetch("manifest.json").then(r=>r.json()).then(m=>{document.getElementById("ver").textContent=m.version}).catch(()=>{});
+</script></body></html>

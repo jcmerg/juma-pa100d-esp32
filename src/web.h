@@ -33,6 +33,9 @@ struct Settings {
     String   gw;                 // gateway; DNS follows it unless dns is set
     String   mask = "255.255.255.0";
     String   dns;
+
+    String   otaPass;            // firmware update (web and espota), NVS
+    String   apPass;             // fallback AP, NVS
 };
 
 extern Settings cfg;
@@ -43,7 +46,12 @@ void settingsLoad();
 void settingsSave();
 // Back to factory state: drops the whole NVS namespace, so the next start
 // comes up with the defaults and without Wi-Fi - i.e. on the fallback AP.
+// Keeps the update password: over telnet, 'factory' followed by 'otapass'
+// would otherwise hand the device to whoever is in the LAN.
 void settingsErase();
+// The update password is still the placeholder: updates over the network are
+// refused until 'otapass' sets a real one.
+bool otaLocked();
 
 void webBegin();
 uint8_t webClients();   // connected dashboard browsers

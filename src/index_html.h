@@ -300,7 +300,7 @@ alarms:["SWR zu hoch","Überstrom","Übertemperatur","Überspannung",
 auto:"Automatik",manual:"Manuell",selConflict:"PA wählt selbst, obwohl TCI-Bandwahl an ist",selLocked:"Bei aktiver TCI-Bandwahl bestimmt der ESP32 das Band und hält die PA auf Manuell.",cels:"Celsius",fahr:"Fahrenheit",
 tNorm:"normal",tWarm:"warm",tHot:"zu heiß",tooHot:"Temperatur %s°",badSwr:"SWR %s",lSwrAlarm:"SWR-Vorwarnung",lSwrWarn:"Warnung ab",lSwrHigh:"Rot ab",swrHint:"Wirkt sofort. Die Abschaltgrenze der PA ist werksseitig 3,0 (einstellbar 1,0–10,0) und steht nicht in der Statusmeldung — hier den eigenen Wert eintragen und darunter warnen lassen. Im Empfang meldet die PA 0,0, die Warnung greift also nur beim Senden.",lTempWarn:"Warnung ab (°)",lTempHigh:"Rot ab (°)",lTempAlarm:"Temperatur-Vorwarnung",tempHint:"Wirkt sofort, ohne Speichern. Die PA setzt ihr Alarmbit erst beim Abschalten — dann bleibt keine Zeit mehr. Diese Warnung schlägt vorher an, mit demselben Ton und Banner. Sinnvoll ist ein Wert deutlich unter der Abschaltgrenze des Geräts (Werksvorgabe 70°, einstellbar 50–100°).",unitStep:"Stufe",
 running:"Läuft: ",noFile:"keine Datei gewählt",auth:"Anmeldung…",loading:"lade %s kB…",
-upOk:"OK — Gerät startet neu",upErr:"Fehler %s",upAbort:"Übertragung abgebrochen",
+upOk:"OK — Gerät startet neu",upErr:"Fehler %s",upLocked:"Update gesperrt — zuerst ein Update-Passwort setzen: Konsole otapass <neu>",upAbort:"Übertragung abgebrochen",
 saving:"speichere…",restarting:"Gerät startet neu",saved:"Gespeichert — Gerät startet neu",wsLost:"Verbindung zum Gerät unterbrochen — versuche erneut…",
 confirm:"Wirklich? Nochmal drücken",
 nAboff:"TCI-Bandwahl aus — die PA folgt der SDR-Software nicht",
@@ -329,7 +329,7 @@ alarms:["High SWR","Over-current","High temperature","High voltage",
 auto:"Automatic",manual:"Manual",selConflict:"PA selects on its own while TCI band select is on",selLocked:"With TCI band select on, the ESP32 determines the band and holds the PA on Manual.",cels:"Celsius",fahr:"Fahrenheit",
 tNorm:"normal",tWarm:"warm",tHot:"too hot",tooHot:"temperature %s°",badSwr:"SWR %s",lSwrAlarm:"SWR pre-warning",lSwrWarn:"Warn above",lSwrHigh:"Red above",swrHint:"Applies immediately. The unit\u2019s trip limit is 3.0 by default (adjustable 1.0–10.0) and is not part of the status message — enter your own value and warn below it. While receiving the PA reports 0.0, so the warning only applies during transmit.",lTempWarn:"Warn above (°)",lTempHigh:"Red above (°)",lTempAlarm:"Temperature pre-warning",tempHint:"Applies immediately, no saving needed. The PA only sets its alarm bit when it shuts down — too late to react. This warning trips earlier, with the same tone and banner. Pick a value well below the unit\u2019s cut-out (factory default 70°, adjustable 50–100°).",unitStep:"Step",
 running:"Running: ",noFile:"no file selected",auth:"Authenticating…",loading:"uploading %s kB…",
-upOk:"OK — device restarting",upErr:"Error %s",upAbort:"transfer aborted",
+upOk:"OK — device restarting",upErr:"Error %s",upLocked:"Updates locked — set an update password first: console otapass <new>",upAbort:"transfer aborted",
 saving:"saving…",restarting:"device restarting",saved:"Saved — device restarting",wsLost:"Connection to the device lost — retrying…",
 confirm:"Confirm? Press again",
 nAboff:"TCI band select off — the PA does not follow the SDR software",
@@ -558,7 +558,7 @@ const fd=new FormData();fd.append("firmware",f,f.name);
 // file is sent, rather than again afterwards.
 $("fwSt").textContent=t("auth");
 fetch("/update",{method:"GET",credentials:"include"}).then(function(r){
-if(!r.ok){$("fwSt").textContent=t("upErr",r.status);return}
+if(!r.ok){$("fwSt").textContent=r.status==403?t("upLocked"):t("upErr",r.status);return}
 $("fwSt").textContent=t("loading",f.size/1024|0);
 const x=new XMLHttpRequest();x.open("POST","/update",true);x.withCredentials=true;
 x.upload.onprogress=function(e){if(e.lengthComputable)

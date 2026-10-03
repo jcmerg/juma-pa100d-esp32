@@ -22,6 +22,10 @@ SDR software ──TCI (WebSocket)──► ESP32 ──UART2──► MAX3232 �
 - interface in English and German, light and dark
 - firmware updates over Wi-Fi, no USB cable at the amplifier
 - telnet console for configuration and troubleshooting
+- a setup AP with its own name per device that opens the dashboard by itself,
+  and finds its way back into the network on its own
+- the onboard LED shows the state at a glance
+- ready-built releases and a [web installer](https://jcmerg.github.io/juma-pa100d-esp32/) — no toolchain needed
 
 The screenshots show real operation — 34 to 37 W on 20 m, SWR 1.4, around
 10 A, and the supply sagging from 13.66 V to 13.10 V under load. Only the SSID
@@ -88,7 +92,7 @@ in a 2 s cycle:
 | on, dark for 100 ms every 2 s | ready: PA online, TCI connected (or switched off) |
 | slow blink | Wi-Fi fine, but the PA does not answer or TCI is not connected |
 | short flash every 2 s | no Wi-Fi |
-| double flash | fallback AP `JUMA-PA` is up |
+| double flash | fallback AP `JUMA-PA-XXXX` is up |
 | fast blink | the PA is transmitting |
 | triple flash | the PA reports an alarm |
 
@@ -254,21 +258,55 @@ goes out. Exit with a short press of PWR.
 
 ## Commissioning
 
+### Installing without building
+
+Every release carries two files:
+
+| File | For |
+|---|---|
+| `juma-pa-<version>-full.bin` | a blank ESP32: `esptool.py --chip esp32 write_flash 0x0 juma-pa-<version>-full.bin` |
+| `juma-pa-<version>-firmware.bin` | an update through the dashboard, see [Firmware update over Wi-Fi](#firmware-update-over-wi-fi) |
+
+Easier still: the **[web installer](https://jcmerg.github.io/juma-pa100d-esp32/)**
+flashes from Chrome or Edge over USB, with nothing to install. Both are built by
+`.github/workflows/release.yml` for every tag `v*`; the tag has to match
+`FW_VERSION`.
+
+A released binary comes with the defaults below — so on a device installed this
+way, set the update password first (`otapass <new>` on the console). Until then
+it accepts no firmware over the network.
+
 ### Setting passwords
 
-There are two, both **placeholders** in `include/config.h`, and both must be
-replaced before use:
+There are two. Both live in NVS and are set at runtime on the console; what
+`include/config.h` holds are only the defaults:
 
-| Constant | Placeholder | Protects |
-|---|---|---|
-| `OTA_PASSWORD` | `changeme` | firmware upload — basic auth `admin` / password on `POST /update`, and espota |
-| `AP_PASSWORD` | `changeme01` | the fallback AP `JUMA-PA` when no Wi-Fi is configured |
+| Password | Default | Console | Protects |
+|---|---|---|---|
+| update | `changeme` = **locked** | `otapass` | firmware upload — basic auth `admin` on `POST /update`, and espota |
+| AP | `juma-pa-setup` | `appass` | the fallback AP `JUMA-PA-XXXX` |
 
-The first one matters more: anyone who can reach the device on the network can
-upload arbitrary firmware with it.
+The update password matters more: anyone who can reach the device on the network
+can upload arbitrary firmware with it. That is why its default is not a password
+but a lock — as long as it is the placeholder, `/update` answers 403, espota does
+not listen at all, and `show` says so. A password from a README protects nothing.
 
-They are set in **`platformio_local.ini`** — that file is in `.gitignore` and so
-never ends up in the repository:
+The AP default, on the other hand, is public on purpose, like the sticker on a
+router: the AP only exists while the device cannot reach its network, and
+whoever is setting it up has to get in without reading the source first.
+`appass` replaces it with your own.
+
+Telnet asks for no login, so whoever can reach port 23 could otherwise just set
+a new update password and flash. Over telnet `otapass` therefore wants the
+current one as well (`otapass <current> <new>`); only the USB console, and a
+device that is still locked, take the new one alone. For the same reason
+`factory` keeps the update password — over USB, `otapass` resets it.
+
+The web upload uses a new password at once; espota only after a restart,
+because ArduinoOTA takes its password once at start-up.
+
+For your own build, other defaults go into **`platformio_local.ini`** — that
+file is in `.gitignore` and so never ends up in the repository:
 
 ```ini
 ; platformio_local.ini
@@ -280,17 +318,18 @@ flags =
 
 The versioned `platformio.ini` pulls it in via `extra_configs` and holds only an
 empty `[secrets]` section itself. **Without the local file the project still
-builds** and falls back to the placeholders from `config.h` — enough for a first
-try at the bench, not enough for operation.
+builds** with the defaults from `config.h`, updates locked included.
 
 Two things worth knowing:
 
-- **Chicken and egg.** The upload that installs the new password still needs the
-  **old** one. So once `JUMA_OTA_PASS=changeme ./tools/flash-wifi.sh`, never
-  again afterwards.
+- These are **defaults**: a password stored with `otapass`/`appass` wins over
+  them. Without a stored one, the default of whichever firmware runs applies —
+  flash a released binary onto a device built with your own password and it is
+  locked again. One `otapass` puts the password into NVS, where no firmware
+  change touches it.
 - `tools/flash-wifi.sh` reads the password from `platformio_local.ini` itself
-  when `JUMA_OTA_PASS` is unset — the same source the firmware was built from,
-  so there is never a second place to maintain.
+  when `JUMA_OTA_PASS` is unset — right as long as the device still uses the
+  default it was built with. After `otapass`, pass `JUMA_OTA_PASS`.
 
 ### Building and flashing
 
@@ -313,8 +352,25 @@ Three equivalent routes:
    save                  # stores to NVS and restarts
    ```
 2. **Telnet**, once Wi-Fi is up: `telnet juma-pa.local`, same commands.
-3. **AP fallback**: without a valid configuration the ESP32 raises the AP
-   **`JUMA-PA`**, dashboard at `http://192.168.4.1/`.
+3. **AP fallback**: if the ESP32 cannot join a network within 15 s of booting,
+   or none is configured, it raises the AP **`JUMA-PA-XXXX`** — `XXXX` are the
+   last four hex digits of its MAC address, so two controllers never share a
+   name. A phone usually opens the dashboard by itself after joining (captive
+   portal); otherwise it is at `http://192.168.4.1/` — with `http://`, or a
+   browser with "secure DNS" goes looking on the internet.
+
+The AP is a fallback, not a mode. The station side keeps trying next to it
+every minute, but only while nobody is connected to the AP, since each attempt
+takes the AP off the air for a moment. Once the network is back, the AP stays
+open for another minute and then until its last client has left. That covers
+the common case of a power cut, where the router takes longer to boot than the
+ESP32. The 5-minute reboot without Wi-Fi is held off while someone is on the
+AP, so it cannot throw them out halfway through fixing the configuration.
+
+Why the connection fails is shown by `show` on the console and printed over
+USB at boot, in plain words: SSID not found (wrong name, out of range, 5 GHz
+only), authentication failed (password), encryption not supported (WPA3 only),
+refused by the access point, or signal lost.
 
 Hidden SSIDs work — the ESP32 finds them with an active scan.
 
@@ -593,7 +649,8 @@ Principle: on any fault **nothing is switched**, rather than guessing.
 | TX active | the band change is deferred and made up once TX ends |
 | Alarm from the PA | displayed, **not** acknowledged automatically |
 | Main loop stuck | task watchdog (20 s) reboots |
-| Wi-Fi stays gone | reconnect every 15 s, reboot after 5 minutes |
+| Wi-Fi stays gone | reconnect every 15 s, reboot after 5 minutes — not while someone is on the fallback AP |
+| Wi-Fi missing at boot | fallback AP after 15 s, the network is retried every minute next to it, the AP closes once it is back |
 | RSSI persistently poor | reconnect after a minute below −75 dBm, picking the strongest AP |
 
 On a TCI disconnect, frequency and TX state are reset deliberately. Otherwise a
@@ -702,6 +759,8 @@ scan                scan for Wi-Fi networks
 hostname <name>     network name for Wi-Fi, mDNS and OTA
 ssid <name>         set the Wi-Fi SSID
 pass <secret>       set the Wi-Fi password
+appass <secret>     password of the fallback AP (8-63 chars)
+otapass [old] <new> update password - 'old' only over telnet
 ip dhcp             address from the network (default)
 ip <addr> <gw> [mask] [dns]   fixed address
 tci <host> [port]   TCI host of the SDR software (port default 50002)
@@ -717,7 +776,7 @@ swrhigh <value>     SWR red in the gauge from here
 swralarm <0|1>      SWR pre-warning off/on
 sel <a|m>           PA band select to automatic / manual
 save                save and restart
-factory yes         erase every setting and restart on the fallback AP
+factory yes         erase every setting but the update password, restart on the fallback AP
 reboot              restart only
 pa <cmd>            raw command to the PA, e.g.  pa =R
 raw                 last status line from the PA
@@ -737,8 +796,10 @@ Costs nothing while off, and a restart turns it off again.
 ```
 
 `show` also names the AP it is on (BSSID, channel, transmit power), the boot
-count with the last reset reason, and — while the fallback AP is up — whether
-its DHCP server is actually handing out addresses; `scan` lists BSSIDs. The
+count with the last reset reason, whether the passwords are still the defaults,
+why the last connection attempt failed, and —
+while the fallback AP is up — whether its DHCP server is actually handing out
+addresses; `scan` lists BSSIDs. The
 telnet line editor behaves as usual: backspace, cursor up, Ctrl-C, Ctrl-U,
 Ctrl-D.
 
@@ -761,7 +822,7 @@ The ESP32 therefore also accepts the firmware itself via `POST /update`
 (`Update.h`, basic auth `admin`):
 
 ```sh
-./tools/flash-wifi.sh juma-pa.local      # takes the password from platformio_local.ini
+./tools/flash-wifi.sh juma-pa.local      # password from JUMA_OTA_PASS or platformio_local.ini
 # or by hand:
 curl -u admin:$JUMA_OTA_PASS -F firmware=@.pio/build/esp32dev/firmware.bin \
      http://juma-pa.local/update
@@ -771,7 +832,8 @@ The dashboard offers an upload field as well. There the browser asks for `admin`
 and the password beforehand — the page triggers that with a protected
 `GET /update` before the file is sent. Without it the whole megabyte would be
 uploaded first, then a 401 would arrive, and after the prompt it would start
-over.
+over. While the update password is still the placeholder, the field says so
+instead of asking.
 
 This runs host → device and is independent of network segmentation. mDNS
 (`juma-pa.local`) does not resolve across segment boundaries either, so use the
@@ -820,7 +882,7 @@ like a hang but is merely a half-loaded page.
 
 | File | Content |
 |---|---|
-| `include/config.h` | pins, timings, passwords, `FW_VERSION` |
+| `include/config.h` | pins, timings, password defaults, `FW_VERSION` |
 | `src/juma_status.h/.cpp` | status parser, free of Arduino → testable on the host |
 | `src/juma.h/.cpp` | serial driver: polling, command queue, line splitting |
 | `src/bands.h/.cpp` | frequency → JUMA band index |
@@ -829,8 +891,11 @@ like a hang but is merely a half-loaded page.
 | `src/console.h/.cpp` | console on UART0 and telnet :23 |
 | `src/index_html.h` | dashboard, one file — the only one that gets edited |
 | `tools/gzip_html.py` | compresses it at build time into `src/index_html_gz.h` |
-| `src/main.cpp` | band controller, watchdog, mDNS, wiring |
-| `tests/test_parse.cpp` | 102 checks for the status parser and band mapping |
+| `src/status_led.h/.cpp` | blink patterns of the status LED |
+| `src/main.cpp` | band controller, Wi-Fi and fallback AP, watchdog, mDNS, wiring |
+| `tests/test_parse.cpp` | 126 checks for the status parser and band mapping |
+| `.github/workflows/release.yml` | release binaries and web installer for every tag `v*` |
+| `webflasher/index.html` | the web installer page, published on GitHub Pages |
 
 `./tests/run.sh` runs on the host and needs no ESP32 — the status parser and the
 band mapping are deliberately free of Arduino dependencies.

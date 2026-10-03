@@ -15,6 +15,8 @@
 #include <esp_wifi.h>          // esp_wifi_get_ps() for the debug trace
 #include <esp_netif.h>         // to check that the AP really serves DHCP
 #include <esp_system.h>        // esp_reset_reason()
+#include <esp_mac.h>           // esp_read_mac() for the AP name
+#include <DNSServer.h>
 #include "config.h"
 #include "juma.h"
 #include "tci.h"
@@ -38,11 +40,93 @@ static uint32_t wifiRoamAt   = 0;
 static bool     wifiWasUp    = false;
 static float    rssiAvg      = 0;     // moving average
 
+// Fallback AP. The station side keeps running next to it (AP+STA), so the
+// device finds its way back into the network by itself - a router that boots
+// slower than the ESP32 after a power cut is the everyday case.
+static bool      apOn       = false;
+static char      apName[24];
+static DNSServer apDns;               // every name -> AP_IP: the captive portal
+static uint32_t  apStaUpAt  = 0;      // station side back while the AP is open
+static uint32_t  apClientAt = 0;      // a client was last seen on the AP
+
+// Why the station side failed, from the Wi-Fi event task. Without it a wrong
+// password and an out-of-range router look the same: "not connected".
+static volatile uint8_t  staReason = 0;
+static volatile uint32_t staFails  = 0;
+static uint32_t          staFailsSeen = 0;
+
+const char* apSsid()   { return apName; }
+bool        apActive() { return apOn; }
+uint8_t     wifiLastReason() { return staReason; }
+
+const char* wifiReasonText(uint8_t r) {
+    switch (r) {
+    case 0:                                   return "-";
+    case WIFI_REASON_NO_AP_FOUND:             return "SSID not found - wrong name, out of range or 5 GHz only";
+    case WIFI_REASON_AUTH_FAIL:
+    case WIFI_REASON_AUTH_EXPIRE:
+    case WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT:
+    case WIFI_REASON_HANDSHAKE_TIMEOUT:
+    case WIFI_REASON_802_1X_AUTH_FAILED:      return "authentication failed - wrong password?";
+    case WIFI_REASON_AKMP_INVALID:
+    case WIFI_REASON_GROUP_CIPHER_INVALID:
+    case WIFI_REASON_PAIRWISE_CIPHER_INVALID:
+    case WIFI_REASON_CIPHER_SUITE_REJECTED:
+    case WIFI_REASON_BAD_CIPHER_OR_AKM:       return "encryption not supported (WPA3 only?)";
+    case WIFI_REASON_ASSOC_FAIL:
+    case WIFI_REASON_ASSOC_TOOMANY:           return "the access point refused the association";
+    case WIFI_REASON_BEACON_TIMEOUT:          return "signal lost";
+    default:                                  return "disconnected";
+    }
+}
+
+static void onStaDisconnected(WiFiEvent_t, WiFiEventInfo_t info) {
+    const uint8_t r = info.wifi_sta_disconnected.reason;
+    if (r == WIFI_REASON_ASSOC_LEAVE) return;     // our own disconnect()
+    staReason = r;
+    staFails++;
+}
+
 uint32_t wifiDropCount() { return wifiDrops_; }
 uint32_t wifiRoamCount() { return wifiRoams_; }
 int32_t  wifiRssiAvg()   { return (int32_t)rssiAvg; }
 uint32_t wifiDownSecs()  {
     return (WiFi.status() == WL_CONNECTED) ? 0 : (millis() - wifiLastOk) / 1000;
+}
+
+// A fixed address has to be set before begin(), and applies to this
+// connection attempt and every reconnect after it - but not across the
+// WIFI_OFF that raising the AP goes through, hence its own function.
+static void staStaticIp() {
+    if (!cfg.staticIp || !cfg.ip.length()) return;
+    IPAddress ip, gw, mask, dns;
+    bool ok = ip.fromString(cfg.ip) && mask.fromString(cfg.mask);
+    if (ok && cfg.gw.length()) ok = gw.fromString(cfg.gw);
+    if (ok && cfg.dns.length()) dns.fromString(cfg.dns);
+    else dns = gw;                     // no DNS given: ask the gateway
+    if (ok && WiFi.config(ip, gw, mask, dns))
+        log_i("static address %s, gateway %s", cfg.ip.c_str(), cfg.gw.c_str());
+    else
+        log_e("static address %s rejected - falling back to DHCP", cfg.ip.c_str());
+}
+
+// Settings that only hold once associated - set earlier, WiFi.begin()
+// discards them again.
+static void staUp() {
+    // With modem sleep every round trip waits for the next beacon
+    // (~100 ms); that made the 23 kB page take 6-20 s.
+    WiFi.setSleep(false);
+    // Full transmit power. The default depends on the calibration in
+    // efuse and on the country setting, and at -74 dBm every dB counts.
+    WiFi.setTxPower(WIFI_POWER_19_5dBm);
+}
+
+static void apStop() {
+    apDns.stop();
+    WiFi.softAPdisconnect(true);       // back to station only
+    apOn = false;
+    log_i("Wi-Fi back - fallback AP '%s' closed", apName);
+    if (dbgOn()) dbg("wifi: fallback AP closed");
 }
 
 static void wifiSupervise() {
@@ -52,10 +136,28 @@ static void wifiSupervise() {
     // Without a configured SSID, AP mode is the intended state.
     if (!cfg.ssid.length()) return;
 
+    const uint8_t apClients = apOn ? WiFi.softAPgetStationNum() : 0;
+    if (apClients) apClientAt = millis();
+
+    // Every failed attempt once, not every 5 s the same line.
+    if (staFails != staFailsSeen) {
+        staFailsSeen = staFails;
+        log_w("Wi-Fi '%s': reason %u, %s", cfg.ssid.c_str(), staReason,
+              wifiReasonText(staReason));
+        if (dbgOn()) dbg("wifi: '%s' failed, reason %u - %s", cfg.ssid.c_str(),
+                         staReason, wifiReasonText(staReason));
+    }
+
     if (WiFi.status() == WL_CONNECTED) {
-        if (!wifiWasUp) log_i("Wi-Fi back: %s", WiFi.localIP().toString().c_str());
+        if (!wifiWasUp) {
+            log_i("Wi-Fi back: %s", WiFi.localIP().toString().c_str());
+            staUp();
+            apStaUpAt = millis();
+        }
         wifiWasUp  = true;
         wifiLastOk = millis();
+
+        if (apOn && !apClients && millis() - apStaUpAt >= AP_LINGER_MS) apStop();
 
         // Moving average instead of the instantaneous value: RSSI swings by
         // 10 dB and more. With the instantaneous value every single good
@@ -97,17 +199,25 @@ static void wifiSupervise() {
                          (unsigned long)(millis() / 1000), (int)rssiAvg);
     }
 
-    if (WiFi.getMode() == WIFI_STA && millis() - wifiRetryAt > WIFI_RETRY_MS) {
+    // With the AP up, an attempt would knock its client off the air - and
+    // that client is most likely somebody entering the right password.
+    const uint32_t retryGap = apOn ? AP_STA_RETRY_MS : WIFI_RETRY_MS;
+    if ((WiFi.getMode() & WIFI_STA) && !apClients &&
+        millis() - wifiRetryAt > retryGap) {
         wifiRetryAt = millis();
         // begin() rather than reconnect(): reconnect() takes the AP last
         // used, begin() scans and picks the strongest one.
         WiFi.disconnect();
+        if (apOn) staStaticIp();
         WiFi.begin(cfg.ssid.c_str(), cfg.pass.c_str());
     }
 
     // If it does not come back for a long time, only a reboot helps - an
     // unreachable device is no use to anyone, and a reboot starts over cleanly.
-    if (millis() - wifiLastOk > WIFI_REBOOT_AFTER_MS) {
+    // Not while somebody is on the AP, though: that would throw them out in
+    // the middle of fixing the very configuration that keeps it from working.
+    if (millis() - wifiLastOk > WIFI_REBOOT_AFTER_MS &&
+        millis() - apClientAt > WIFI_REBOOT_AFTER_MS) {
         log_e("Wi-Fi gone for %lu s - rebooting", (unsigned long)wifiDownSecs());
         Serial.flush();
         delay(100);
@@ -236,34 +346,34 @@ static void apFallback() {
     WiFi.disconnect(true, true);
     WiFi.mode(WIFI_OFF);
     delay(100);
-    WiFi.mode(WIFI_AP);
+    // With an SSID configured the station side stays up next to the AP and
+    // wifiSupervise() keeps trying it.
+    WiFi.mode(cfg.ssid.length() ? WIFI_AP_STA : WIFI_AP);
     if (!WiFi.softAPConfig(AP_IP, AP_IP, AP_MASK))
         log_e("softAPConfig failed - the AP will not hand out addresses");
-    if (!WiFi.softAP(AP_SSID, AP_PASS))
+    if (!WiFi.softAP(apName, cfg.apPass.c_str()))
         log_e("softAP failed");
     delay(100);
-    log_w("No Wi-Fi - AP '%s' on %s, DHCP %s", AP_SSID,
+    // Every name resolves to us, so a phone's connectivity check lands on the
+    // dashboard and the OS opens it by itself. The redirect for paths we do
+    // not serve is in web.cpp.
+    apDns.start(53, "*", AP_IP);
+    apOn       = true;
+    wifiRetryAt = millis();          // the boot attempt just failed
+    log_w("No Wi-Fi - AP '%s' on %s, DHCP %s", apName,
           WiFi.softAPIP().toString().c_str(),
           apDhcpRunning() ? "running" : "NOT RUNNING");
 }
 
 static void wifiBegin() {
+    uint8_t mac[6];
+    esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    snprintf(apName, sizeof(apName), "%s-%02X%02X", AP_SSID_PREFIX, mac[4], mac[5]);
+    WiFi.onEvent(onStaDisconnected, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+
     WiFi.mode(WIFI_STA);
     WiFi.setHostname(cfg.hostname.c_str());
-
-    // A fixed address has to be set before begin(), and applies to this
-    // connection attempt and every reconnect after it.
-    if (cfg.staticIp && cfg.ip.length()) {
-        IPAddress ip, gw, mask, dns;
-        bool ok = ip.fromString(cfg.ip) && mask.fromString(cfg.mask);
-        if (ok && cfg.gw.length()) ok = gw.fromString(cfg.gw);
-        if (ok && cfg.dns.length()) dns.fromString(cfg.dns);
-        else dns = gw;                     // no DNS given: ask the gateway
-        if (ok && WiFi.config(ip, gw, mask, dns))
-            log_i("static address %s, gateway %s", cfg.ip.c_str(), cfg.gw.c_str());
-        else
-            log_e("static address %s rejected - falling back to DHCP", cfg.ip.c_str());
-    }
+    staStaticIp();
 
     if (cfg.ssid.length()) {
         // The default is WIFI_FAST_SCAN, which makes the ESP32 take the
@@ -278,17 +388,16 @@ static void wifiBegin() {
     }
 
     if (WiFi.status() != WL_CONNECTED) {
+        // This is where commissioning over USB stalls - say why.
+        if (cfg.ssid.length())
+            Serial.printf("Wi-Fi '%s' failed: reason %u, %s\n", cfg.ssid.c_str(),
+                          staReason, wifiReasonText(staReason));
+        staFailsSeen = staFails;
         // Without Wi-Fi, raise an AP of our own so the web UI stays
         // reachable for configuration.
         apFallback();
     } else {
-        // AFTER connecting - set earlier, WiFi.begin() discards it again.
-        // With modem sleep every round trip waits for the next beacon
-        // (~100 ms); that made the 23 kB page take 6-20 s.
-        WiFi.setSleep(false);
-        // Full transmit power. The default depends on the calibration in
-        // efuse and on the country setting, and at -74 dBm every dB counts.
-        WiFi.setTxPower(WIFI_POWER_19_5dBm);
+        staUp();
         wifiWasUp = true;
         log_i("Wi-Fi connected: %s, sleep off, tx power %.1f dBm",
               WiFi.localIP().toString().c_str(), WiFi.getTxPower() * 0.25f);
@@ -360,7 +469,9 @@ void setup() {
     // flashing, and although the PA would fall back by itself after 5 s, this
     // way the state is defined rather than merely expired.
     ArduinoOTA.setHostname(cfg.hostname.c_str());
-    ArduinoOTA.setPassword(OTA_PASS);
+    // ArduinoOTA takes its password once, before begin() - so a password set
+    // with 'otapass' reaches espota only after a restart.
+    ArduinoOTA.setPassword(cfg.otaPass.c_str());
     ArduinoOTA.onStart([]() {
         if (cfg.otaStandby) {
             juma.sendNow("=S");
@@ -368,7 +479,9 @@ void setup() {
         }
     });
     ArduinoOTA.onError([](ota_error_t e) { Serial.printf("OTA error %u\n", e); });
-    ArduinoOTA.begin();
+    // Locked: no listener at all rather than one guarded by the placeholder.
+    if (otaLocked()) Serial.println("Updates over the network locked - console: otapass <new>");
+    else             ArduinoOTA.begin();
 
     if (MDNS.begin(cfg.hostname.c_str())) {
         MDNS.addService("http", "tcp", HTTP_PORT);
@@ -409,7 +522,7 @@ static LedPattern ledPattern() {
         if (s.alarms) return LedPattern::Alarm;
         if (s.tx)     return LedPattern::Transmit;
     }
-    if (WiFi.getMode() & WIFI_AP)       return LedPattern::AccessPoint;
+    if (apOn)                           return LedPattern::AccessPoint;
     if (WiFi.status() != WL_CONNECTED)  return LedPattern::NoWifi;
     // TCI switched off is a choice, not a fault - then the PA alone decides.
     if (!juma.online() || (tci.enabled() && !tci.connected()))
@@ -466,6 +579,7 @@ void loop() {
     uint32_t startedUs = micros();
     esp_task_wdt_reset();
     PHASE("ArduinoOTA.handle", ArduinoOTA.handle());
+    if (apOn) apDns.processNextRequest();
     // juma and tci run in tasks of their own - that is the point: whatever
     // blocks there, the PA keeps getting its poll and stays in remote mode.
     PHASE("webLoop",           webLoop());
