@@ -268,9 +268,9 @@ Every release carries two files:
 | `juma-pa-<version>-firmware.bin` | an update through the dashboard, see [Firmware update over Wi-Fi](#firmware-update-over-wi-fi) |
 
 Easier still: the **[web installer](https://jcmerg.github.io/juma-pa100d-esp32/)**
-flashes from Chrome or Edge over USB, with nothing to install. Both are built by
-`.github/workflows/release.yml` for every tag `v*`; the tag has to match
-`FW_VERSION`.
+flashes from Chrome or Edge over USB, with nothing to install. Its page is in
+German and English and follows the browser language; the flashing dialog itself
+comes from esp-web-tools and is English only.
 
 A released binary comes with the defaults below — so on a device installed this
 way, set the update password first (`otapass <new>` on the console). Until then
@@ -899,6 +899,25 @@ like a hang but is merely a half-loaded page.
 
 `./tests/run.sh` runs on the host and needs no ESP32 — the status parser and the
 band mapping are deliberately free of Arduino dependencies.
+
+### Making a release
+
+Raise `FW_VERSION` in `include/config.h`, commit, then tag the same version:
+
+```sh
+git tag v1.30.0 && git push origin v1.30.0
+```
+
+`.github/workflows/release.yml` refuses a tag that does not match `FW_VERSION`,
+builds without `platformio_local.ini` — so the binary carries the public
+defaults, never your own passwords — runs the host tests, attaches both files to
+the release and publishes the web installer. A release whose text was written
+by hand before the tag keeps that text; the files are only added.
+
+Set up once per repository, in **Settings → Pages**, source **GitHub Actions**,
+and in **Settings → Environments → github-pages** the tag rule `v*` next to
+`main`. Without the latter the run fails straight away with *Tag "v…" is not
+allowed to deploy to github-pages*, before anything is built.
 
 ### Platform pitfalls
 
