@@ -21,6 +21,7 @@
 #include "bands.h"
 #include "web.h"
 #include "console.h"
+#include "status_led.h"
 
 static uint32_t lastBandCmd  = 0;
 
@@ -350,6 +351,7 @@ void setup() {
     Serial.println("JUMA PA Controller " FW_VERSION);
 
     bootCensus();
+    statusLedBegin();
     settingsLoad();
     juma.begin();
     wifiBegin();
@@ -397,6 +399,22 @@ void setup() {
             vTaskDelay(pdMS_TO_TICKS(50));
         }
     }, "band", 3072, nullptr, 2, nullptr, 1);
+}
+
+// Which pattern the status LED shows. Most urgent first: an alarm outranks
+// TX, and both only mean anything while the PA answers.
+static LedPattern ledPattern() {
+    if (juma.online()) {
+        const JumaStatus s = juma.status();
+        if (s.alarms) return LedPattern::Alarm;
+        if (s.tx)     return LedPattern::Transmit;
+    }
+    if (WiFi.getMode() & WIFI_AP)       return LedPattern::AccessPoint;
+    if (WiFi.status() != WL_CONNECTED)  return LedPattern::NoWifi;
+    // TCI switched off is a choice, not a fault - then the PA alone decides.
+    if (!juma.online() || (tci.enabled() && !tci.connected()))
+        return LedPattern::Waiting;
+    return LedPattern::Ready;
 }
 
 // Loop timing, evaluated only while 'debug 1' is on. Everything - web server,
@@ -453,6 +471,10 @@ void loop() {
     PHASE("webLoop",           webLoop());
     PHASE("consoleLoop",       consoleLoop());
     PHASE("wifiSupervise",     wifiSupervise());
+    // The LED steps in 100 ms; no need to take the PA's lock more often.
+    static uint32_t ledAt = 0;
+    if (millis() - ledAt >= 100) { ledAt = millis(); statusLedSet(ledPattern()); }
+    statusLedLoop();
     runS = millis() / 1000;          // RTC RAM: readable again after a reset
     debugTick(startedUs);
 }

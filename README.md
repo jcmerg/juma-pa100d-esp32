@@ -78,6 +78,24 @@ The RS-232 socket of the PA-100D is a **3.5 mm stereo jack**, not a DB9.
 
 Run the module **on 3.3 V**, not on 5 V.
 
+### Status LED
+
+The blue onboard LED of the DevKit (GPIO2) shows the state without a browser,
+in a 2 s cycle:
+
+| Pattern | Meaning |
+|---|---|
+| on, dark for 100 ms every 2 s | ready: PA online, TCI connected (or switched off) |
+| slow blink | Wi-Fi fine, but the PA does not answer or TCI is not connected |
+| short flash every 2 s | no Wi-Fi |
+| double flash | fallback AP `JUMA-PA` is up |
+| fast blink | the PA is transmitting |
+| triple flash | the PA reports an alarm |
+
+It is driven from the main loop: a LED that stops changing means the firmware
+has stopped running. Another pin or none at all (`-1`) is set with `LED_PIN`
+in `include/config.h`.
+
 GPIO16/17 are the default pins of UART2 and free on WROOM modules. On **WROVER**
 the PSRAM occupies them — use e.g. 25/26 there and adjust `include/config.h`.
 UART0 stays the USB console.

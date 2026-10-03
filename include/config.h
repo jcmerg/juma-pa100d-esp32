@@ -4,7 +4,7 @@
 
 // Bump the number on every build you want to recognise on the device - that is
 // how you check what is actually running after an OTA update.
-#define FW_VERSION "1.28.0"
+#define FW_VERSION "1.29.0"
 
 // ---------------------------------------------------------------------------
 // Hardware
@@ -19,6 +19,12 @@ static const long JUMA_BAUD   = 115200;
 // Only true when running WITHOUT a MAX3232 (clamp variant - RS-232 is inverted
 // with respect to TTL). With a MAX3232 this must stay false.
 static const bool JUMA_INVERT = false;
+
+// Status LED - GPIO2 is the blue onboard LED of the ESP32 DevKit. -1 switches
+// it off, for boards without one or where GPIO2 is needed elsewhere. GPIO2 is
+// a strapping pin, which is harmless here: it is only driven after boot.
+static const int  LED_PIN = 2;
+static const int  LED_ON  = HIGH;   // level that lights it
 
 // ---------------------------------------------------------------------------
 // Timing
