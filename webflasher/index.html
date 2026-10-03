@@ -9,52 +9,141 @@
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,sans-serif}
 main{max-width:720px;margin:0 auto;padding:16px}
+header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
 h1{font-size:22px;margin:8px 0 2px}.sub{color:var(--dim);margin:0 0 18px}
 h2{font-size:13px;margin:0 0 10px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em}
 section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px}
 ul,ol{margin:0;padding-left:20px}li{margin:3px 0}a{color:var(--acc)}code{font-size:13px}
 esp-web-install-button button{padding:10px 20px;border:0;border-radius:6px;background:var(--acc);color:#fff;font:inherit;font-weight:600;cursor:pointer}
+.lang{display:flex;margin-top:10px}
+.lang button{font:inherit;font-size:13px;font-weight:600;padding:4px 10px;border:1px solid var(--line);background:var(--card);color:var(--dim);cursor:pointer;margin-left:-1px}
+.lang button:first-child{border-radius:8px 0 0 8px;margin-left:0}
+.lang button:last-child{border-radius:0 8px 8px 0}
+.lang button.act{background:var(--acc);border-color:var(--acc);color:#fff}
 .err{color:var(--bad)}.dim{color:var(--dim);font-size:13px}
 footer{color:var(--dim);font-size:12px;text-align:center;padding:4px 0 12px}
 </style></head><body><main>
-<h1>JUMA PA controller</h1>
-<p class="sub">Firmware installer · version <span id="ver">…</span></p>
+<header>
+ <div><h1>JUMA PA controller</h1>
+ <p class="sub"><span data-t="sub"></span> <span id="ver">…</span></p></div>
+ <div class="lang"><button id="bDe" type="button">DE</button><button id="bEn" type="button">EN</button></div>
+</header>
 
-<section><h2>Install</h2>
-<p>Connect the ESP32 by USB and click the button, then pick its serial port.</p>
+<section><h2 data-t="hInstall"></h2>
+<p data-t="install"></p>
 <esp-web-install-button manifest="manifest.json">
- <button slot="activate">Install firmware</button>
- <span slot="unsupported" class="err">This browser has no Web Serial. Use Chrome or Edge on a desktop computer.</span>
- <span slot="not-allowed" class="err">Web Serial needs a secure connection (https).</span>
+ <button slot="activate" data-t="bInstall"></button>
+ <span slot="unsupported" class="err" data-t="unsupported"></span>
+ <span slot="not-allowed" class="err" data-t="notAllowed"></span>
 </esp-web-install-button>
-<p class="dim">On an update you can choose whether to erase the device. Without erasing, every setting stays, the update password included.</p>
+<p class="dim" data-t="erase"></p>
 </section>
 
-<section><h2>Requirements</h2>
+<section><h2 data-t="hReq"></h2>
 <ul>
-<li>An ESP32 with the classic chip and 4 MB flash, e.g. ESP32-WROOM / DevKitC. ESP32-S2, -S3, -C3 and -C6 do not work.</li>
-<li>A MAX3232 level shifter between the ESP32 and the PA — see the <a href="https://github.com/jcmerg/juma-pa100d-esp32#hardware">wiring</a>.</li>
-<li>Chrome or Edge on a desktop computer.</li>
-<li>If no port appears: the USB driver for the board's serial chip, <a href="https://www.silabs.com/developer-tools/usb-to-uart-bridge-vcp-drivers">CP210x</a> or <a href="https://www.wch-ic.com/downloads/CH341SER_EXE.html">CH340</a>.</li>
-<li>If connecting fails, hold the <b>BOOT</b> button while it connects.</li>
+<li data-t="req1"></li>
+<li data-t="req2"></li>
+<li data-t="req3"></li>
+<li data-t="req4"></li>
+<li data-t="req5"></li>
 </ul></section>
 
-<section><h2>After installing</h2>
+<section><h2 data-t="hAfter"></h2>
 <ol>
-<li>Join the Wi-Fi <code>JUMA-PA-XXXX</code>, password <code>juma-pa-setup</code>.</li>
-<li>The dashboard usually opens by itself; otherwise go to <code>http://192.168.4.1/</code>.</li>
-<li>Enter your Wi-Fi and the TCI server under the gear icon and save.</li>
-<li>The device is then at <code>http://juma-pa.local/</code>.</li>
-<li>On its console (<code>telnet juma-pa.local</code>, or the installer's “Logs &amp; console”):
+<li data-t="after1"></li>
+<li data-t="after2"></li>
+<li data-t="after3"></li>
+<li data-t="after4"></li>
+<li><span data-t="after5"></span>
   <ul>
-  <li><code>otapass &lt;new&gt;</code> — updates over the network stay locked until you do this</li>
-  <li><code>appass &lt;new&gt;</code> — your own password for the fallback AP</li>
+  <li data-t="otapass"></li>
+  <li data-t="appass"></li>
   </ul></li>
 </ol>
-<p class="dim">Later updates go through the dashboard: <code>juma-pa-…-firmware.bin</code> from the <a href="https://github.com/jcmerg/juma-pa100d-esp32/releases/latest">latest release</a>.</p>
+<p class="dim" data-t="later"></p>
 </section>
 
-<footer><a href="https://github.com/jcmerg/juma-pa100d-esp32">GitHub</a> · MIT licence</footer>
+<footer><a href="https://github.com/jcmerg/juma-pa100d-esp32">GitHub</a> · <span data-t="licence"></span></footer>
 </main><script>
-fetch("manifest.json").then(r=>r.json()).then(m=>{document.getElementById("ver").textContent=m.version}).catch(()=>{});
+// The strings carry markup (links, code), so they go in with innerHTML - they
+// are fixed text from this file, nothing from outside.
+const REPO = "https://github.com/jcmerg/juma-pa100d-esp32";
+const L = {
+en: {
+  sub: "Firmware installer · version",
+  hInstall: "Install",
+  install: "Connect the ESP32 by USB and click the button, then pick its serial port.",
+  bInstall: "Install firmware",
+  unsupported: "This browser has no Web Serial. Use Chrome or Edge on a desktop computer.",
+  notAllowed: "Web Serial needs a secure connection (https).",
+  erase: "On an update you can choose whether to erase the device. Without erasing, every setting stays, the update password included.",
+  hReq: "Requirements",
+  req1: "An ESP32 with the classic chip and 4 MB flash, e.g. ESP32-WROOM / DevKitC. ESP32-S2, -S3, -C3 and -C6 do not work.",
+  req2: `A MAX3232 level shifter between the ESP32 and the PA — see the <a href="${REPO}#hardware">wiring</a>.`,
+  req3: "Chrome or Edge on a desktop computer.",
+  req4: `If no port appears: the USB driver for the board's serial chip, <a href="https://www.silabs.com/developer-tools/usb-to-uart-bridge-vcp-drivers">CP210x</a> or <a href="https://www.wch-ic.com/downloads/CH341SER_EXE.html">CH340</a>.`,
+  req5: "If connecting fails, hold the <b>BOOT</b> button while it connects.",
+  hAfter: "After installing",
+  after1: "Join the Wi-Fi <code>JUMA-PA-XXXX</code>, password <code>juma-pa-setup</code>.",
+  after2: "The dashboard usually opens by itself; otherwise go to <code>http://192.168.4.1/</code>.",
+  after3: "Enter your Wi-Fi and the TCI server under the gear icon and save.",
+  after4: "The device is then at <code>http://juma-pa.local/</code>.",
+  after5: "On its console (<code>telnet juma-pa.local</code>, or the installer's “Logs &amp; console”):",
+  otapass: "<code>otapass &lt;new&gt;</code> — updates over the network stay locked until you do this",
+  appass: "<code>appass &lt;new&gt;</code> — your own password for the fallback AP",
+  later: `Later updates go through the dashboard: <code>juma-pa-…-firmware.bin</code> from the <a href="${REPO}/releases/latest">latest release</a>.`,
+  licence: "MIT licence",
+},
+de: {
+  sub: "Firmware-Installer · Version",
+  hInstall: "Installieren",
+  install: "ESP32 per USB anschließen, auf den Knopf klicken und dann seinen seriellen Port auswählen.",
+  bInstall: "Firmware installieren",
+  unsupported: "Dieser Browser kann kein Web Serial. Bitte Chrome oder Edge auf einem Desktop-Rechner verwenden.",
+  notAllowed: "Web Serial braucht eine sichere Verbindung (https).",
+  erase: "Bei einem Update lässt sich wählen, ob das Gerät gelöscht wird. Ohne Löschen bleiben alle Einstellungen erhalten, auch das Update-Passwort.",
+  hReq: "Voraussetzungen",
+  req1: "Ein ESP32 mit dem klassischen Chip und 4 MB Flash, z. B. ESP32-WROOM / DevKitC. ESP32-S2, -S3, -C3 und -C6 gehen nicht.",
+  req2: `Ein MAX3232-Pegelwandler zwischen ESP32 und PA — siehe <a href="${REPO}#hardware">Verdrahtung</a>.`,
+  req3: "Chrome oder Edge auf einem Desktop-Rechner.",
+  req4: `Falls kein Port erscheint: der USB-Treiber für den Seriell-Chip des Boards, <a href="https://www.silabs.com/developer-tools/usb-to-uart-bridge-vcp-drivers">CP210x</a> oder <a href="https://www.wch-ic.com/downloads/CH341SER_EXE.html">CH340</a>.`,
+  req5: "Klappt die Verbindung nicht, beim Verbinden die <b>BOOT</b>-Taste gedrückt halten.",
+  hAfter: "Nach der Installation",
+  after1: "Mit dem WLAN <code>JUMA-PA-XXXX</code> verbinden, Passwort <code>juma-pa-setup</code>.",
+  after2: "Das Dashboard öffnet sich meist von selbst, sonst <code>http://192.168.4.1/</code> aufrufen.",
+  after3: "Unter dem Zahnrad das eigene WLAN und den TCI-Server eintragen und speichern.",
+  after4: "Danach ist das Gerät unter <code>http://juma-pa.local/</code> erreichbar.",
+  after5: "Auf seiner Konsole (<code>telnet juma-pa.local</code> oder „Logs &amp; console“ im Installer):",
+  otapass: "<code>otapass &lt;neu&gt;</code> — bis dahin bleiben Updates über das Netz gesperrt",
+  appass: "<code>appass &lt;neu&gt;</code> — ein eigenes Passwort für den Fallback-AP",
+  later: `Spätere Updates laufen über das Dashboard: <code>juma-pa-…-firmware.bin</code> aus dem <a href="${REPO}/releases/latest">neuesten Release</a>.`,
+  licence: "MIT-Lizenz",
+},
+};
+
+// First visit: the first browser language we have; after that the choice made
+// with the buttons. Storage can be unavailable (private mode) - then the
+// browser language simply decides every time.
+function stored() { try { return localStorage.getItem("lang"); } catch (e) { return null; } }
+function detect() {
+  for (const l of (navigator.languages || [navigator.language || ""])) {
+    const p = String(l).toLowerCase().slice(0, 2);
+    if (L[p]) return p;
+  }
+  return "en";
+}
+let lang = L[stored()] ? stored() : detect();
+
+function apply() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-t]").forEach(el => { el.innerHTML = L[lang][el.dataset.t]; });
+  document.getElementById("bDe").className = lang === "de" ? "act" : "";
+  document.getElementById("bEn").className = lang === "en" ? "act" : "";
+}
+function setLang(l) { lang = l; try { localStorage.setItem("lang", l); } catch (e) {} apply(); }
+document.getElementById("bDe").onclick = () => setLang("de");
+document.getElementById("bEn").onclick = () => setLang("en");
+apply();
+
+fetch("manifest.json").then(r => r.json()).then(m => { document.getElementById("ver").textContent = m.version; }).catch(() => {});
 </script></body></html>
