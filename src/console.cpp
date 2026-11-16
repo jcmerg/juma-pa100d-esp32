@@ -23,6 +23,7 @@ uint32_t wifiDropCount();
 uint32_t wifiRoamCount();
 int32_t  wifiRssiAvg();
 #include "bands.h"
+#include "pa_flash.h"
 #include <Arduino.h>
 #include <stdarg.h>
 #include <esp_task_wdt.h>
@@ -205,6 +206,16 @@ static void show() {
                       s.operate ? "OPERATE" : "STANDBY", bandName(s.band), s.gain,
                       s.watts, s.swr, s.volts, s.amps, s.temp,
                       s.celsius ? 'C' : 'F', s.alarms);
+    const PaFlash::Info pf = paFlash.info();
+    if (pf.state != PaFlash::Empty) {
+        static const char* const PF[] = { "-", "image loaded", "waiting for the boot loader",
+            "writing", "verifying", "done, verify OK", "FAILED", "firmware started" };
+        io->printf("PA update %s  '%s' %u rows", PF[pf.state], pf.file, pf.rows);
+        if (pf.total) io->printf("  %u/%u", pf.done, pf.total);
+        if (pf.boot[0]) io->printf("  boot loader %s", pf.boot);
+        if (pf.err[0]) io->printf("  error %s %s", pf.err, pf.arg);
+        io->println();
+    }
     io->printf("Browser   %u WebSocket clients connected\n", webClients());
     if (unsaved) io->println(F("          unsaved changes - 'save' stores them and restarts"));
     io->printf("Version   %s\n", FW_VERSION);
@@ -250,6 +261,13 @@ static void dispatch(char* s) {
     if (!strcmp(cmd, "help") || !strcmp(cmd, "?")) { help(); return; }
     if (!strcmp(cmd, "show")) { show(); return; }
     if (!strcmp(cmd, "scan")) { scan(); return; }
+    // A restart halfway through leaves the PA without firmware until it is
+    // flashed again.
+    if (paFlash.busy() && (!strcmp(cmd, "reboot") || !strcmp(cmd, "save") ||
+                           !strcmp(cmd, "factory"))) {
+        io->println(F("PA firmware update running - wait for it, or abort it in the dashboard"));
+        return;
+    }
     if (!strcmp(cmd, "reboot")) { io->println(F("Restarting...")); delay(100); ESP.restart(); }
 
     if (!strcmp(cmd, "quit") || !strcmp(cmd, "exit") || !strcmp(cmd, "bye")) {

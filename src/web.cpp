@@ -8,6 +8,7 @@ bool apActive();
 #include "juma.h"
 #include "tci.h"
 #include "bands.h"
+#include "pa_flash.h"
 #include "index_html_gz.h"
 #include <WiFi.h>
 #include <WebServer.h>
@@ -49,7 +50,7 @@ static uint32_t         lastPush = 0;
 // growing String reallocates every time. Over hours that fragments the heap -
 // free memory stays high, the largest contiguous block shrinks, and eventually
 // an allocation fails.
-static char             stateJson[1280];
+static char             stateJson[2048];
 static size_t           stateLen = 0;
 
 
@@ -177,6 +178,22 @@ static void buildState() {
     d["noteArg"] = na;
     d["version"] = FW_VERSION;
 
+    // PA firmware update. Codes again, the browser has the wording.
+    static const char* const PAF_STATE[] = {
+        "empty", "loaded", "wait", "write", "verify", "done", "fail", "started" };
+    const PaFlash::Info pf = paFlash.info();
+    JsonObject p = d["paf"].to<JsonObject>();
+    p["st"]   = PAF_STATE[pf.state];
+    p["vo"]   = pf.verifyOnly;
+    p["i"]    = pf.done;
+    p["n"]    = pf.total;
+    p["rows"] = pf.rows;
+    p["file"] = pf.file;
+    p["err"]  = pf.err;
+    p["arg"]  = pf.arg;
+    p["boot"] = pf.boot;
+    p["hold"] = pf.hold;
+
     stateLen = serializeJson(d, stateJson, sizeof(stateJson));
     if (stateLen >= sizeof(stateJson) - 1) log_e("state does not fit in the buffer");
 }
@@ -245,6 +262,9 @@ static void handleCmd(const char* text) {
 // --- HTTP ----------------------------------------------------------------
 
 static void onConfig() {
+    // A restart in the middle of a PA update leaves the PA without firmware
+    // until it is flashed again.
+    if (paFlash.busy()) { http.send(409, "text/plain", "busy"); return; }
     if (http.hasArg("hostname")) cfg.hostname = sanitizeHostname(http.arg("hostname"));
     if (http.hasArg("ssid"))    cfg.ssid    = http.arg("ssid");
     if (http.hasArg("pass") && http.arg("pass").length()) cfg.pass = http.arg("pass");
@@ -280,15 +300,28 @@ static void onConfig() {
 //   curl -u admin:<pass> -F firmware=@firmware.bin http://<ip>/update
 // ---------------------------------------------------------------------------
 static bool otaAuthOk = false;
+static bool otaPaBusy = false;      // refused at the start: a PA update ran
 
 bool otaLocked() { return cfg.otaPass == OTA_PASSWORD_PLACEHOLDER; }
 
 static const char* OTA_LOCKED_MSG =
     "updates locked - set an update password first: console 'otapass <new>'\n";
 
+// The check for the ESP32's own firmware. Answers the request itself when it
+// fails.
+static bool otaAuth() {
+    if (otaLocked()) { http.send(403, "text/plain", OTA_LOCKED_MSG); return false; }
+    if (!http.authenticate("admin", cfg.otaPass.c_str())) { http.requestAuthentication(); return false; }
+    return true;
+}
+
 static void onUpdateEnd() {
-    if (otaLocked()) { http.send(403, "text/plain", OTA_LOCKED_MSG); return; }
-    if (!http.authenticate("admin", cfg.otaPass.c_str())) { http.requestAuthentication(); return; }
+    if (!otaAuth()) return;
+    if (paFlash.busy() || otaPaBusy) {
+        otaPaBusy = false;
+        http.send(409, "text/plain", "PA firmware update running\n");
+        return;
+    }
     bool ok = otaAuthOk && !Update.hasError();
     http.sendHeader("Connection", "close");
     http.send(ok ? 200 : 500, "text/plain; charset=utf-8",
@@ -302,6 +335,9 @@ static void onUpdateChunk() {
     if (up.status == UPLOAD_FILE_START) {
         otaAuthOk = !otaLocked() && http.authenticate("admin", cfg.otaPass.c_str());
         if (!otaAuthOk) { log_w("OTA: authentication failed"); return; }
+        // The restart afterwards would cut the PA update short.
+        otaPaBusy = paFlash.busy();
+        if (otaPaBusy) { otaAuthOk = false; return; }
         // Put the PA into a defined idle state - loop() no longer runs while
         // writing. Switchable, because otherwise every development flash takes
         // away the operating mode unasked.
@@ -333,6 +369,68 @@ static void onUpdateChunk() {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Firmware update of the PA, see pa_flash.h. No password, unlike the ESP32's
+// own: nothing reaches the PA unless somebody at the unit starts its boot
+// loader with OPER + PWR. What remains from the network - =S and the link
+// paused for a minute - the dashboard can do without a password anyway.
+//   curl -F hex=@"Juma PA-100D v5.02.hex" http://<ip>/pa/hex
+//   curl -X POST "http://<ip>/pa/flash?do=start"
+// then switch the PA off and start its boot loader with OPER + PWR.
+// do=verify only compares, do=abort stops, do=run starts the new firmware
+// from the boot loader instead of a power cycle.
+// ---------------------------------------------------------------------------
+static bool paUploadOk = false;
+// The body had a file part at all - without one the end handler would report
+// whatever an earlier upload left behind.
+static bool paFileSeen = false;
+
+static void onPaHexChunk() {
+    HTTPUpload& up = http.upload();
+    if (up.status == UPLOAD_FILE_START) {
+        paFileSeen = true;
+        paUploadOk = paFlash.uploadBegin(up.filename.c_str());
+        return;
+    }
+    if (!paUploadOk) return;
+    esp_task_wdt_reset();
+    // A bad record stops the parser; the rest of the body is merely read.
+    if (up.status == UPLOAD_FILE_WRITE)        paFlash.uploadChunk(up.buf, up.currentSize);
+    else if (up.status == UPLOAD_FILE_END)     paFlash.uploadEnd();
+    else if (up.status == UPLOAD_FILE_ABORTED) paFlash.uploadAbort();
+}
+
+static void onPaHexEnd() {
+    const bool seen = paFileSeen;
+    paFileSeen = false;
+    if (!seen) { http.send(400, "text/plain", "no file - field 'hex'\n"); return; }
+    if (paFlash.busy()) { http.send(409, "text/plain", "busy"); return; }
+    const PaFlash::Info pf = paFlash.info();
+    const bool ok = pf.state == PaFlash::Loaded;
+    JsonDocument d;
+    d["ok"]   = ok;
+    d["rows"] = pf.rows;
+    char last[12];
+    snprintf(last, sizeof(last), "0x%06lX", (unsigned long)pf.last);
+    d["last"] = last;
+    d["err"]  = pf.err;
+    d["arg"]  = pf.arg;
+    String out;
+    serializeJson(d, out);
+    http.send(ok ? 200 : 422, "application/json", out);
+}
+
+static void onPaFlash() {
+    const String what = http.arg("do");
+    bool ok;
+    if (what == "start")       ok = paFlash.start(false);
+    else if (what == "verify") ok = paFlash.start(true);
+    else if (what == "abort")  { paFlash.abort(); ok = true; }
+    else if (what == "run")    ok = paFlash.runFirmware();
+    else { http.send(400, "text/plain", "do=start|verify|abort|run\n"); return; }
+    http.send(ok ? 200 : 409, "text/plain", ok ? "ok\n" : "refused\n");
+}
+
 void settingsErase() {
     prefs.begin("juma", false);
     const String ota = prefs.isKey("otapass") ? prefs.getString("otapass") : String();
@@ -352,10 +450,11 @@ void webBegin() {
     // through - the browser would upload a megabyte, get a 401, prompt, and
     // upload again. This GET makes it ask beforehand.
     http.on("/update", HTTP_GET, []() {
-        if (otaLocked()) { http.send(403, "text/plain", OTA_LOCKED_MSG); return; }
-        if (!http.authenticate("admin", cfg.otaPass.c_str())) { http.requestAuthentication(); return; }
-        http.send(204, "text/plain", "");
+        if (otaAuth()) http.send(204, "text/plain", "");
     });
+
+    http.on("/pa/hex", HTTP_POST, onPaHexEnd, onPaHexChunk);
+    http.on("/pa/flash", HTTP_POST, onPaFlash);
 
     http.on("/", HTTP_GET, []() {
         // Serve compressed: a third of the bytes, so the script at the end of

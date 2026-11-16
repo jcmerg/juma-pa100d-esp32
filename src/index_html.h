@@ -235,6 +235,20 @@ input[type=file]{padding:7px}
     <div class="hint" data-t="otaStbyHint"></div>
   </div>
 
+  <div class="sec"><label data-t="lPaFw"></label>
+    <div class="fld"><input type="file" id="pafw" accept=".hex"></div>
+    <button id="bPaUp" style="width:100%" data-t="bUpload"></button>
+    <div class="hint" id="paSt"></div>
+    <div class="hint" id="paRun"></div>
+    <div class="row" style="margin-top:12px">
+      <button id="bPaFlash" style="flex:1" data-t="bPaFlash"></button>
+      <button id="bPaVerify" style="flex:1" data-t="bPaVerify"></button></div>
+    <div class="row" style="margin-top:8px">
+      <button id="bPaAbort" style="flex:1" data-t="bPaAbort"></button>
+      <button id="bPaRun" style="flex:1" data-t="bPaRun"></button></div>
+    <div class="hint" data-th="paHint"></div>
+  </div>
+
   <div class="sec"><label data-t="lOff"></label>
     <button class="danger" id="bOff" style="width:100%">Power OFF</button>
     <div class="hint" data-th="offHint"></div>
@@ -293,6 +307,20 @@ cfgHdr:"Konfiguration",lHost:"Gerätename (mDNS, OTA)",lSsid:"WLAN SSID",lPass:"
 lTciHost:"TCI Host (SDR-Software)",lTciPort:"TCI Port",lTciOn:"TCI aktiv",lTciLost:"Bei TCI-Verlust auf Automatik der PA",tciLostHint:"Schickt nach 15 s ohne TCI ein =A. Welche Methode die PA dann nutzt, steht in ihrer eigenen Konfiguration (F-Sense, FT-817, Yaesu CAT, KX2/KX3, JUMA-TRX2) — steht sie dort auf Manual, bringt =A nichts. Ohne diesen Schalter bleibt die PA auf dem zuletzt kommandierten Band, weil =Bn sie von A auf M schaltet.",
 bSave:"Speichern & neu starten",lFw:"Firmware-Update",bUpload:"Hochladen",
 lOff:"Verstärker abschalten",lLang:"Sprache",lTheme:"Darstellung",thSystem:"System",thLight:"Hell",thDark:"Dunkel",lOtaStby:"Vor dem Update auf STANDBY",otaStbyHint:"Wirkt sofort. Schickt =S, bevor die neue Firmware geschrieben wird. Während des Schreibens und des Neustarts regelt nichts die PA. Aus lassen, wenn dir Entwicklungs-Uploads nicht die Betriebsart wegnehmen sollen.",
+lPaFw:"PA-Firmware",bPaFlash:"Flashen",bPaVerify:"Nur prüfen",bPaAbort:"Abbrechen",bPaRun:"Firmware starten",
+paHint:"Lädt eine Firmware (<code>.hex</code>) über den Ingenia-Bootloader in die PA, wie <code>juma-flash.py</code>. Geschrieben wird nur der Programmspeicher — nie die Kalibrierung (EEPROM), die Konfigurationsbits oder der Bootloader selbst. Ablauf: Datei hochladen, <b>Flashen</b> zweimal drücken, dann die PA ausschalten und mit <b>OPER halten, PWR drücken</b> im Bootloader starten. Danach das Netzteil trennen und normal einschalten (PWR wirkt im Bootloader nicht) — oder <b>Firmware starten</b>. Ohne Passwort: Geschrieben wird nur, wenn jemand an der PA den Bootloader startet.",
+pfEmpty:"Keine PA-Firmware geladen",pfLoaded:"Bereit: %s",pfRows:"Zeilen",pfWait:"Warte auf den Bootloader (noch %s s) — PA ausschalten, OPER halten und PWR drücken",
+pfWrite:"Schreibe %s Zeilen",pfVerify:"Prüfe %s Zeilen",pfDone:"Fertig, Verify OK — Netzteil trennen und normal einschalten, oder Firmware starten",
+pfDoneVo:"Flash stimmt mit der Datei überein — Netzteil trennen und normal einschalten, oder Firmware starten",pfStarted:"Firmware gestartet",pfFail:"Fehler: %s",pfBoot:"Bootloader %s",pfBusy:"PA-Update läuft gerade",
+pe:{noboot:"keine Antwort vom Bootloader",notboot:"die PA antwortet, aber nicht als Bootloader. Läuft noch die Firmware? Sonst Netzteil trennen und neu versuchen",
+devid:"unbekannte Geräte-ID %s",vector:"unerwarteter Reset-Vektor in der PA (%s) — nichts geschrieben",bootarea:"die Datei enthält Daten im Bootloader-Bereich (ab %s) — nichts geschrieben",
+wrnoans:"keine Antwort beim Schreiben von %s. Netzteil trennen, Bootloader neu starten und erneut flashen — der Bootloader ist nicht betroffen. Bis dahin bleibt die Verbindung zur PA angehalten; Abbrechen gibt sie frei",
+wrnack:"Schreibfehler bei %s (3× NACK) — Kabel prüfen",rdto:"Lese-Timeout bei %s",rderr:"Lesefehler bei %s",
+verify:"Verify fehlgeschlagen (%s) — erneut flashen, der Bootloader ist nicht betroffen",aborted:"abgebrochen. War schon etwas geschrieben: erneut flashen, der Bootloader ist nicht betroffen",
+task:"Task konnte nicht gestartet werden",nostore:"kein Zwischenspeicher (SPIFFS-Partition fehlt)",upabort:"Übertragung abgebrochen",
+hexrec:"Zeile %s: kein gültiger HEX-Datensatz",hextype:"Zeile %s: Datensatztyp nicht unterstützt",hexrange:"Daten außerhalb des Programmspeichers (%s)",
+hexdup:"widersprüchliche Daten für Adresse %s",hexvec:"kein Reset-Vektor oder keine Startadresse 0x100 — keine JUMA-Firmware",
+hexgoto:"kein GOTO __reset bei 0x100 (ohne juma-trx2.gld gelinkt?) — der Bootloader könnte sie nicht starten",hexstore:"Zwischenspeicher konnte nicht geschrieben werden",hexeof:"kein Endesatz — Datei unvollständig?"},
 offHint:"Schickt <code>=P0</code> ohne Zustandsspeicherung. Einschalten geht nur am Gerät — zweimal drücken zur Bestätigung.",
 fans:["Aus","Langsam","Mittel","Schnell"],
 alarms:["SWR zu hoch","Überstrom","Übertemperatur","Überspannung",
@@ -322,6 +350,20 @@ cfgHdr:"Setup",lHost:"Device name (mDNS, OTA)",lSsid:"Wi-Fi SSID",lPass:"Wi-Fi p
 lTciHost:"TCI host (SDR software)",lTciPort:"TCI port",lTciOn:"TCI enabled",lTciLost:"Fall back to the PA\u2019s own band select",tciLostHint:"Sends =A after 15 s without TCI. Which method the PA then uses is set in its own configuration (F-Sense, FT-817, Yaesu CAT, KX2/KX3, JUMA-TRX2) — if that is set to Manual, =A achieves nothing. Without this switch the PA stays on the last commanded band, because =Bn moves it from A to M.",
 bSave:"Save & restart",lFw:"Firmware update",bUpload:"Upload",
 lOff:"Power down amplifier",lLang:"Language",lTheme:"Appearance",thSystem:"System",thLight:"Light",thDark:"Dark",lOtaStby:"Standby before update",otaStbyHint:"Applies immediately. Sends =S before the new firmware is written. Nothing controls the PA while writing and rebooting. Turn off if development uploads should not take away the operating state.",
+lPaFw:"PA firmware",bPaFlash:"Flash",bPaVerify:"Verify only",bPaAbort:"Abort",bPaRun:"Start firmware",
+paHint:"Loads a firmware (<code>.hex</code>) into the PA through the Ingenia boot loader, like <code>juma-flash.py</code>. Only program memory is written — never the calibration (EEPROM), the configuration bits or the boot loader itself. Steps: upload the file, press <b>Flash</b> twice, then switch the PA off and start its boot loader with <b>hold OPER, press PWR</b>. Afterwards disconnect the power supply and switch on normally (PWR does nothing in the boot loader) — or <b>Start firmware</b>. No password: nothing is written unless somebody at the PA starts its boot loader.",
+pfEmpty:"No PA firmware loaded",pfLoaded:"Ready: %s",pfRows:"rows",pfWait:"Waiting for the boot loader (%s s left) — switch the PA off, hold OPER and press PWR",
+pfWrite:"Writing %s rows",pfVerify:"Verifying %s rows",pfDone:"Done, verify OK — disconnect the power supply and switch on normally, or start the firmware",
+pfDoneVo:"Flash matches the file — disconnect the power supply and switch on normally, or start the firmware",pfStarted:"Firmware started",pfFail:"Error: %s",pfBoot:"boot loader %s",pfBusy:"PA update in progress",
+pe:{noboot:"no answer from the boot loader",notboot:"the PA answers, but not as the boot loader. Is the firmware still running? Otherwise disconnect the power supply and try again",
+devid:"unknown device ID %s",vector:"unexpected reset vector in the device (%s) — nothing has been written",bootarea:"the file contains data in the boot loader area (from %s) — nothing has been written",
+wrnoans:"no answer when writing %s. Disconnect the power supply, start the boot loader again and flash again — the boot loader is not affected. Until then the PA link stays paused; Abort releases it",
+wrnack:"write error at %s (NACK 3 times) — check the cable",rdto:"read timeout at %s",rderr:"read error at %s",
+verify:"verify failed (%s) — flash again, the boot loader is not affected",aborted:"aborted. If anything was written already: flash again, the boot loader is not affected",
+task:"could not start the task",nostore:"no scratch area (SPIFFS partition missing)",upabort:"transfer aborted",
+hexrec:"line %s: not a valid HEX record",hextype:"line %s: record type not supported",hexrange:"data outside the program memory (%s)",
+hexdup:"conflicting data for address %s",hexvec:"no reset vector or no start address 0x100 — not a JUMA firmware",
+hexgoto:"no GOTO __reset at 0x100 (linked without juma-trx2.gld?) — the boot loader could not start it",hexstore:"could not write the scratch area",hexeof:"no end record — file incomplete?"},
 offHint:"Sends <code>=P0</code> without saving state. Powering on is only possible at the unit — press twice to confirm.",
 fans:["Off","Slow","Medium","Fast"],
 alarms:["High SWR","Over-current","High temperature","High voltage",
@@ -567,6 +609,52 @@ x.onload=function(){$("fwSt").textContent=x.status==200?t("upOk"):t("upErr",x.st
 x.onerror=function(){$("fwSt").textContent=t("upAbort")};x.send(fd);
 }).catch(function(){$("fwSt").textContent=t("upAbort")})};
 
+// --- PA firmware ----------------------------------------------------------
+// The upload and the commands only start things; what happens shows up in
+// the state the device pushes anyway.
+function paDo(what){$("paSt").textContent="";
+fetch("/pa/flash?do="+what,{method:"POST"}).then(function(r){
+if(!r.ok)$("paSt").textContent=r.status==409?t("pfBusy"):t("upErr",r.status)})
+.catch(function(){$("paSt").textContent=t("upAbort")})}
+$("bPaUp").onclick=function(){const f=$("pafw").files[0];
+if(!f){$("paSt").textContent=t("noFile");return}
+const fd=new FormData();fd.append("hex",f,f.name);
+$("paSt").textContent=t("loading",f.size/1024|0);
+const x=new XMLHttpRequest();x.open("POST","/pa/hex",true);
+x.upload.onprogress=function(e){if(e.lengthComputable)
+$("paSt").textContent=Math.round(e.loaded/e.total*100)+" %"};
+// 422 is a file that failed the check - the reason is in the state line.
+x.onload=function(){$("paSt").textContent=x.status==409?t("pfBusy"):
+(x.status==200||x.status==422)?"":t("upErr",x.status)};
+x.onerror=function(){$("paSt").textContent=t("upAbort")};x.send(fd)};
+// Flashing replaces the PA's firmware - press twice, like Power OFF.
+let paArm=0;
+$("bPaFlash").onclick=function(e){const b=e.currentTarget;
+if(Date.now()-paArm>3000){paArm=Date.now();b.textContent=t("confirm");
+setTimeout(function(){if(Date.now()-paArm>=3000)b.textContent=t("bPaFlash")},3100);return}
+paArm=0;b.textContent=t("bPaFlash");paDo("start")};
+$("bPaVerify").onclick=function(){paDo("verify")};
+$("bPaAbort").onclick=function(){paDo("abort")};
+$("bPaRun").onclick=function(){paDo("run")};
+function paRender(p){
+const busy=p.st=="wait"||p.st=="write"||p.st=="verify";
+let txt;
+if(p.st=="empty")txt=t("pfEmpty");
+else if(p.st=="loaded")txt=t("pfLoaded",p.file+", "+p.rows+" "+t("pfRows"));
+else if(p.st=="wait")txt=t("pfWait",p.n-p.i);
+else if(p.st=="write")txt=t("pfWrite",p.i+"/"+p.n);
+else if(p.st=="verify")txt=t("pfVerify",p.i+"/"+p.n);
+else if(p.st=="done")txt=t(p.vo?"pfDoneVo":"pfDone");
+else if(p.st=="started")txt=t("pfStarted");
+else{const m=L[lang].pe[p.err];txt=t("pfFail",m?String(m).replace("%s",p.arg):(p.err+" "+p.arg))}
+if(p.boot)txt+=" · "+t("pfBoot",p.boot);
+$("paRun").textContent=txt;
+$("bPaUp").disabled=busy;
+$("bPaFlash").disabled=$("bPaVerify").disabled=busy||!p.rows;
+$("bPaAbort").disabled=!busy&&!p.hold;
+$("bPaRun").disabled=p.st!="done";
+if(!paArm)$("bPaFlash").textContent=t("bPaFlash")}
+
 // --- Raising alarms -------------------------------------------------------
 // The PA only beeps locally. The Notification API is moreover restricted to a
 // "secure context" (HTTPS or localhost) - over http:// to a LAN address the
@@ -795,6 +883,7 @@ $("raw").textContent=s.raw;
 $("note").textContent=noteText(s);
 $("note").className="note"+(NWARN[s.note]?" warn":"");
 $("fwSt").textContent=t("running")+(s.version||"");
+if(s.paf)paRender(s.paf);
 if(!$("panel").classList.contains("on")){
   $("hostname").value=s.hostname||"";
   $("tcihost").value=s.tciHost;$("tciport").value=s.tciPort;$("ssid").value=s.ssid;

@@ -19,6 +19,9 @@ public:
 
     bool send(const char* cmd);          // into the queue
     void sendNow(const char* cmd);       // at once, bypassing the queue (OTA)
+    // Hands the serial line over to the PA firmware update: no poll, no
+    // commands, nothing read. Resuming drops whatever was queued meanwhile.
+    void pause(bool on);
     bool setBand(uint8_t n);             // 1..9
     bool setGain(uint8_t n);             // 1..4
     bool setOperate(bool on);            // =O / =S
@@ -62,6 +65,7 @@ private:
     uint8_t  tailN_ = 0, tailPos_ = 0;
     char     lastSent_[QL] = {0};
     char     banner_[48] = {0};
+    bool     paused_ = false;
     SemaphoreHandle_t mtx_ = nullptr;
 };
 

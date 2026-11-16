@@ -4,7 +4,7 @@
 
 // Bump the number on every build you want to recognise on the device - that is
 // how you check what is actually running after an OTA update.
-#define FW_VERSION "1.30.0"
+#define FW_VERSION "1.31.0"
 
 // ---------------------------------------------------------------------------
 // Hardware
@@ -84,6 +84,11 @@ static const uint32_t AP_LINGER_MS    = 60000;
 // dimensioned because a firmware upload spends a long time inside a single
 // handleClient() - the upload handler feeds the watchdog as well.
 static const uint32_t WDT_TIMEOUT_S = 20;
+
+// Firmware update of the PA: how long the controller keeps sending 0x55 for
+// the boot loader - time enough to switch the PA off and start it with
+// OPER + PWR. As in juma-flash.py.
+static const uint16_t PA_FLASH_WAIT_S = 60;
 
 // ---------------------------------------------------------------------------
 // Network

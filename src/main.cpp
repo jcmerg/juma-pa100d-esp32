@@ -24,6 +24,7 @@
 #include "web.h"
 #include "console.h"
 #include "status_led.h"
+#include "pa_flash.h"
 
 static uint32_t lastBandCmd  = 0;
 
@@ -216,8 +217,10 @@ static void wifiSupervise() {
     // unreachable device is no use to anyone, and a reboot starts over cleanly.
     // Not while somebody is on the AP, though: that would throw them out in
     // the middle of fixing the very configuration that keeps it from working.
+    // Nor in the middle of a PA update: that runs over the serial line and
+    // needs no Wi-Fi, but a restart would cut it short.
     if (millis() - wifiLastOk > WIFI_REBOOT_AFTER_MS &&
-        millis() - apClientAt > WIFI_REBOOT_AFTER_MS) {
+        millis() - apClientAt > WIFI_REBOOT_AFTER_MS && !paFlash.busy()) {
         log_e("Wi-Fi gone for %lu s - rebooting", (unsigned long)wifiDownSecs());
         Serial.flush();
         delay(100);
@@ -463,6 +466,7 @@ void setup() {
     statusLedBegin();
     settingsLoad();
     juma.begin();
+    paFlash.begin();
     wifiBegin();
     // OTA: flashing over Wi-Fi so no USB cable has to hang off the amplifier.
     // Put the PA into STANDBY before the update - loop() does not run while
@@ -578,7 +582,9 @@ static inline void phaseEnd(const char* what) {
 void loop() {
     uint32_t startedUs = micros();
     esp_task_wdt_reset();
-    PHASE("ArduinoOTA.handle", ArduinoOTA.handle());
+    // espota cannot be refused once it has begun, and its restart would cut a
+    // PA update short - so it is not even listened to meanwhile, and times out.
+    if (!paFlash.busy()) PHASE("ArduinoOTA.handle", ArduinoOTA.handle());
     if (apOn) apDns.processNextRequest();
     // juma and tci run in tasks of their own - that is the point: whatever
     // blocks there, the PA keeps getting its poll and stays in remote mode.

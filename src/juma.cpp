@@ -89,6 +89,7 @@ bool Juma::send(const char* cmd)        { Lock lk(mtx_); return enqueue(cmd); }
 // afterwards - such as just before an OTA update.
 void Juma::sendNow(const char* cmd) {
     Lock lk(mtx_);
+    if (paused_) return;                // the line belongs to the boot loader
     Serial2.print(cmd);
     Serial2.print(TERM);
     Serial2.flush();
@@ -113,10 +114,23 @@ bool Juma::setGain(uint8_t n) {
     return enqueue(c);
 }
 
+void Juma::pause(bool on) {
+    Lock lk(mtx_);
+    paused_ = on;
+    if (on) return;
+    // What piled up while paused is stale - band commands for a PA that was
+    // switched off in between, and as many polls as fit in the queue.
+    qHead_ = qTail_ = 0;
+    len_ = 0;
+    while (Serial2.available()) Serial2.read();
+    lastTx_ = lastPoll_ = millis();
+}
+
 // --- Receiving ------------------------------------------------------------
 
 void Juma::service() {
     Lock lk(mtx_);
+    if (paused_) return;
     pumpQueue();
 
     uint16_t budget = RX_MAX_PER_LOOP;

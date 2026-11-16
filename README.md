@@ -21,6 +21,8 @@ SDR software ──TCI (WebSocket)──► ESP32 ──UART2──► MAX3232 �
 - signal strength in the header, coloured by what the link can still carry
 - interface in English and German, light and dark
 - firmware updates over Wi-Fi, no USB cable at the amplifier
+- the **amplifier's own firmware** updated over the same line, from the
+  browser — the Ingenia bootloader protocol of `juma-flash.py`, no PC at the PA
 - telnet console for configuration and troubleshooting
 - a setup AP with its own name per device that opens the dashboard by itself,
   and finds its way back into the network on its own
@@ -846,18 +848,68 @@ otherwise takes away the operating mode every time.
 
 ### Updating the amplifier's own firmware
 
-Not this controller's job, and it cannot do it — but the procedure runs over
-the same serial line, so unplug the ESP32 for it. Two details cost an afternoon
-here and are written down nowhere else.
+The controller loads a new firmware into the PA itself, over the RS-232 line it
+is wired to anyway. It speaks the **Ingenia dsPIC bootloader** protocol, ported
+from [`tools/juma-flash.py`](https://github.com/jcmerg/juma-pa100d-firmware/blob/main/tools/juma-flash.py)
+of the firmware repository, with the same checks:
 
-**Getting the amplifier into the bootloader: hold OPER, then switch on.** The
-JUMA update documentation describes the button only for the transceivers, where
-it is VFO. Which button the amplifier wants is not in there at all.
+- only **program memory** is written — never the configuration registers, never
+  the data EEPROM, so the calibration stays;
+- the bootloader address is read from the PA's reset vector (PA-100D:
+  `0x017D00`), and a HEX file with data from there on is refused before a byte
+  is written;
+- the reset vector always keeps pointing at the bootloader, and row 0 is only
+  rewritten if it differs — an interrupted update is simply repeated;
+- every row is read back and compared.
 
-**The bootloader's device list is incomplete.** The amplifier's
-**dsPIC30F6014A** — device ID `0x02C3` — is missing from the XML that ships
-with the Ingenia dsPIC bootloader, and without an entry the flash never starts.
-Add it at the end of that XML; it is not the same as the plain 6014, whose
+In the dashboard, under **PA firmware** in the settings:
+
+1. Choose the `.hex` file (e.g. `Juma PA-100D v5.02.hex` from the
+   [firmware releases](https://github.com/jcmerg/juma-pa100d-firmware/releases/latest))
+   and **Upload**. The ESP32 checks it right away — record checksums, reset
+   vector, the `GOTO __reset` at `0x100` — and shows the row count, or why it
+   refuses the file.
+2. Press **Flash** twice. The PA gets a `=S`, the status polling stops, and the
+   ESP32 starts sending `0x55` for the bootloader's baud rate detection.
+3. Within 60 s: **switch the PA off, hold OPER and press PWR.** The bootloader
+   answers, the dashboard shows bootloader version, chip and address, then the
+   progress of writing (about 15 s at 115200 baud) and verifying.
+4. **Disconnect the power supply** and switch on normally — PWR does nothing
+   inside the bootloader. Or **Start firmware**, which jumps from the
+   bootloader into the new firmware.
+
+**Verify only** compares the PA's flash with the file without writing.
+**Abort** stops at the next row; the bootloader is not affected, flash again.
+
+Unlike the ESP32's own update it asks for **no password**: nothing reaches the
+PA unless somebody at the unit starts its bootloader with OPER + PWR. What is
+left from the network — a `=S` and the PA link paused for a minute — the
+dashboard can do without a password anyway. From the command line:
+
+```sh
+curl -F hex=@"Juma PA-100D v5.02.hex" http://juma-pa.local/pa/hex
+curl -X POST "http://juma-pa.local/pa/flash?do=start"
+# then OPER + PWR at the PA; progress in 'show' on the console
+```
+
+`do=verify`, `do=abort` and `do=run` correspond to the buttons. During the
+update, `/update` and "save & restart" answer 409.
+
+The image — up to 192 kB — does not fit in RAM next to Wi-Fi. It waits in the
+**SPIFFS partition** of the default partition table, which this firmware does
+not otherwise use, and is gone after a restart of the ESP32. A custom partition
+table without a SPIFFS partition of at least 192 kB disables the feature
+(`nostore`).
+
+The RS-928 needs its bootloader installed once with a programmer before any
+serial update works — see the firmware repository. Its jack is wired the other
+way round; if the controller talks to the PA, flashing works too.
+
+The Windows route with the Ingenia GUI remains possible, with the ESP32
+unplugged. Two details from it that are written down nowhere else:
+**OPER**, not VFO, is the button that starts the bootloader on the amplifier;
+and the PA's **dsPIC30F6014A** (device ID `0x02C3`) is missing from the XML that
+ships with the Ingenia bootloader — add it, it is not the plain 6014, whose
 bootloader area begins at `0x017E00` instead of `0x017D00`.
 
 ---
@@ -892,13 +944,16 @@ like a hang but is merely a half-loaded page.
 | `src/index_html.h` | dashboard, one file — the only one that gets edited |
 | `tools/gzip_html.py` | compresses it at build time into `src/index_html_gz.h` |
 | `src/status_led.h/.cpp` | blink patterns of the status LED |
+| `src/pa_hex.h/.cpp` | HEX reader for the PA firmware, free of Arduino → testable on the host |
+| `src/pa_flash.h/.cpp` | Ingenia bootloader protocol: flashing the PA over UART2 |
 | `src/main.cpp` | band controller, Wi-Fi and fallback AP, watchdog, mDNS, wiring |
 | `tests/test_parse.cpp` | 126 checks for the status parser and band mapping |
+| `tests/test_hex.cpp` | 47 checks for the HEX reader of the PA firmware update |
 | `.github/workflows/release.yml` | release binaries and web installer for every tag `v*` |
 | `webflasher/index.html` | the web installer page, published on GitHub Pages |
 
-`./tests/run.sh` runs on the host and needs no ESP32 — the status parser and the
-band mapping are deliberately free of Arduino dependencies.
+`./tests/run.sh` runs on the host and needs no ESP32 — the status parser, the
+band mapping and the HEX reader are deliberately free of Arduino dependencies.
 
 ### Making a release
 
