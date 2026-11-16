@@ -114,7 +114,8 @@ text-align:center;padding:8px;font-size:13px;font-weight:600;z-index:20;display:
 display:none;align-items:center;gap:14px;padding:8px 14px;font-size:14px;
 font-weight:600;z-index:21}
 .alarmbar.on{display:flex}
-.alarmbar .hbtn{margin-left:auto;height:30px;background:rgba(0,0,0,.25);
+.alarmbar #abTxt{margin-right:auto}
+.alarmbar .hbtn{height:30px;background:rgba(0,0,0,.25);
 border-color:rgba(255,255,255,.35);color:#fff;font-weight:600}
 @keyframes abpulse{0%,100%{opacity:1}50%{opacity:.55}}
 .alarmbar.on{animation:abpulse 1.1s ease-in-out infinite}
@@ -144,7 +145,8 @@ input[type=file]{padding:7px}
 .sec{border-top:1px solid var(--line);margin-top:18px;padding-top:16px}
 .hint{font-size:11px;color:var(--dim);margin-top:8px;line-height:1.5}
 </style></head><body><div class="offline" id="off"></div>
-<div class="alarmbar" id="ab2"><span id="abTxt"></span><button class="hbtn" id="bMute"></button></div>
+<div class="alarmbar" id="ab2"><span id="abTxt"></span><button class="hbtn" id="bAck"
+  data-t="bAck" style="display:none"></button><button class="hbtn" id="bMute"></button></div>
 <div class="wrap">
 
 <header><h1>JUMA PA</h1>
@@ -302,7 +304,7 @@ de:{bandHdr:"Band — PA meldet",abLabel:"Bandwahl per TCI",
 attHdr:"Abschwächer",
 lvlHdr:"Pegel",thHdr:"Temperatur, Lüfter, Versorgung",alHdr:"Alarme",
 tTemp:"PA Temp",tFan:"Lüfter",tVolt:"Spannung",tAmp:"Strom",tSel:"Bandwahl der PA",
-tAtt:"Abschwächer",bClear:"Alarm quittieren",alarmTitle:"JUMA PA: Alarm",alarmBody:"Die Endstufe meldet: %s",bMute:"Stummschalten",bMuted:"Stumm",lSound:"Akustischer Alarm",bNotify:"Benachrichtigungen erlauben",notifyOn:"Benachrichtigungen aktiv",notifyNo:"Benachrichtigungen erlaubt der Browser nur über HTTPS. Diese Seite läuft über http://, deshalb geht es hier nicht. Der Alarmton und das Banner funktionieren unabhängig davon.",notifyDenied:"Benachrichtigungen wurden abgelehnt",soundHint:"Die PA piepst nur vor Ort. Der Browser wiederholt den Alarmton alle 5 s, bis er quittiert ist oder der Alarm weg ist. Der Ton startet erst, nachdem die Seite einmal angeklickt wurde — so will es der Browser.",vNorm:"normal",vPre:"Vorwarnung",vUnder:"Unterspannung",vHigh:"erhöht",vOver:"Überspannung",iTrip:"Trip bei %s A",
+tAtt:"Abschwächer",bClear:"Alarm quittieren",alarmTitle:"JUMA PA: Alarm",alarmBody:"Die Endstufe meldet: %s",bMute:"Stummschalten",bMuted:"Stumm",bAck:"Quittieren",lSound:"Akustischer Alarm",bNotify:"Benachrichtigungen erlauben",notifyOn:"Benachrichtigungen aktiv",notifyNo:"Benachrichtigungen erlaubt der Browser nur über HTTPS. Diese Seite läuft über http://, deshalb geht es hier nicht. Der Alarmton und das Banner funktionieren unabhängig davon.",notifyDenied:"Benachrichtigungen wurden abgelehnt",soundHint:"Die PA piepst nur vor Ort. Der Browser wiederholt den Alarmton alle 5 s, bis er quittiert ist oder der Alarm weg ist. Der Ton startet erst, nachdem die Seite einmal angeklickt wurde — so will es der Browser.",vNorm:"normal",vPre:"Vorwarnung",vUnder:"Unterspannung",vHigh:"erhöht",vOver:"Überspannung",iTrip:"Trip bei %s A",
 cfgHdr:"Konfiguration",lHost:"Gerätename (mDNS, OTA)",lSsid:"WLAN SSID",lPass:"WLAN Passwort",phPass:"unverändert lassen",
 lTciHost:"TCI Host (SDR-Software)",lTciPort:"TCI Port",lTciOn:"TCI aktiv",lTciLost:"Bei TCI-Verlust auf Automatik der PA",tciLostHint:"Schickt nach 15 s ohne TCI ein =A. Welche Methode die PA dann nutzt, steht in ihrer eigenen Konfiguration (F-Sense, FT-817, Yaesu CAT, KX2/KX3, JUMA-TRX2) — steht sie dort auf Manual, bringt =A nichts. Ohne diesen Schalter bleibt die PA auf dem zuletzt kommandierten Band, weil =Bn sie von A auf M schaltet.",
 bSave:"Speichern & neu starten",lFw:"Firmware-Update",bUpload:"Hochladen",
@@ -345,7 +347,7 @@ en:{bandHdr:"Band — PA reports",abLabel:"Band select via TCI",
 attHdr:"Attenuator",
 lvlHdr:"Levels",thHdr:"Temperature, fan, supply",alHdr:"Alarms",
 tTemp:"PA temp",tFan:"Fan",tVolt:"Voltage",tAmp:"Current",tSel:"PA band select",
-tAtt:"Attenuator",bClear:"Clear alarm",alarmTitle:"JUMA PA: alarm",alarmBody:"The amplifier reports: %s",bMute:"Mute",bMuted:"Muted",lSound:"Audible alarm",bNotify:"Enable notifications",notifyOn:"Notifications active",notifyNo:"Browsers only allow notifications over HTTPS. This page runs over http://, so it cannot work here. The alarm tone and banner work regardless.",notifyDenied:"Notifications were denied",soundHint:"The PA only beeps locally. The browser repeats the alarm tone every 5 s until acknowledged or the alarm clears. Sound starts only after the page has been clicked once — browser policy.",vNorm:"normal",vPre:"pre-limit",vUnder:"under-voltage",vHigh:"elevated",vOver:"over-voltage",iTrip:"trip at %s A",
+tAtt:"Attenuator",bClear:"Clear alarm",alarmTitle:"JUMA PA: alarm",alarmBody:"The amplifier reports: %s",bMute:"Mute",bMuted:"Muted",bAck:"Clear",lSound:"Audible alarm",bNotify:"Enable notifications",notifyOn:"Notifications active",notifyNo:"Browsers only allow notifications over HTTPS. This page runs over http://, so it cannot work here. The alarm tone and banner work regardless.",notifyDenied:"Notifications were denied",soundHint:"The PA only beeps locally. The browser repeats the alarm tone every 5 s until acknowledged or the alarm clears. Sound starts only after the page has been clicked once — browser policy.",vNorm:"normal",vPre:"pre-limit",vUnder:"under-voltage",vHigh:"elevated",vOver:"over-voltage",iTrip:"trip at %s A",
 cfgHdr:"Setup",lHost:"Device name (mDNS, OTA)",lSsid:"Wi-Fi SSID",lPass:"Wi-Fi password",phPass:"leave unchanged",
 lTciHost:"TCI host (SDR software)",lTciPort:"TCI port",lTciOn:"TCI enabled",lTciLost:"Fall back to the PA\u2019s own band select",tciLostHint:"Sends =A after 15 s without TCI. Which method the PA then uses is set in its own configuration (F-Sense, FT-817, Yaesu CAT, KX2/KX3, JUMA-TRX2) — if that is set to Manual, =A achieves nothing. Without this switch the PA stays on the last commanded band, because =Bn moves it from A to M.",
 bSave:"Save & restart",lFw:"Firmware update",bUpload:"Upload",
@@ -711,6 +713,10 @@ function alarmOff(){
   if(beepT){clearInterval(beepT);beepT=null}
   if(titleT){clearInterval(titleT);titleT=null;document.title=origTitle}
 }
+// Mute is the browser's tone only; the PA keeps beeping until its alarm is
+// cleared with =C. Both belong where the alarm is shown - the button that
+// clears it was further down in the alarm card, out of sight.
+$("bAck").onclick=function(){send("clear",0)};
 $("bMute").onclick=function(){
   muted=true; $("bMute").textContent=t("bMuted");
   if(beepT){clearInterval(beepT);beepT=null}
@@ -871,6 +877,9 @@ const hot=(s.tempAlarm&&s.online&&tCelCur>=TWARN)?s.temp:0;
 const bad=(s.swrAlarm&&s.online&&s.swr>0&&s.swr>=SWRWARN)?s.swr:0;
 if(s.alarms||hot||bad){
   alarmOn(s.alarms,hot,bad);
+  // Only the PA's own alarms can be cleared - the dashboard's temperature
+  // and SWR pre-warnings go away with their cause.
+  $("bAck").style.display=s.alarms?"":"none";
   const neu=s.alarms&~lastAl;
   if(neu)notify(alarmNames(neu));
   else if(hot&&!lastHot)notify(t("tooHot",hot));

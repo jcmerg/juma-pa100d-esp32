@@ -470,6 +470,12 @@ The PA beeps on an alarm — but only locally. The dashboard turns that into:
 - an alarm tone, repeated every 5 s until acknowledged or the alarm clears
 - a blinking tab title so it is noticeable in the background too
 
+The banner has two buttons, and they do different things. **Mute** silences the
+browser's tone only — the PA itself keeps beeping, its beeper is its own.
+**Clear** sends `=C`, which clears the PA's alarm and with it the beeper; it is
+only shown while the PA reports an alarm of its own, since the dashboard's
+temperature and SWR pre-warnings clear with their cause.
+
 **The dashboard also warns before the cut-out.** The PA's alarm bit only arrives
 once it shuts down because of over-temperature — and then there is no time left
 to react; the serial connection dies with the shutdown, so the message would
