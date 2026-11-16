@@ -60,7 +60,8 @@ private:
     bool     over_ = false;                       // line longer than buf_
     bool     eof_ = false;                        // type 01 seen
     uint32_t base_ = 0;
-    uint32_t lineNo_ = 0;
+    uint32_t lineNo_ = 0;                         // line breaks so far
+    bool     whole_ = false;                      // past the last line
     Err      err_ = OK;
     uint32_t errLine_ = 0, errAddr_ = 0;
     bool     skipCfg_ = false, skipEe_ = false;

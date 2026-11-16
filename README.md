@@ -954,7 +954,7 @@ like a hang but is merely a half-loaded page.
 | `src/pa_flash.h/.cpp` | Ingenia bootloader protocol: flashing the PA over UART2 |
 | `src/main.cpp` | band controller, Wi-Fi and fallback AP, watchdog, mDNS, wiring |
 | `tests/test_parse.cpp` | 126 checks for the status parser and band mapping |
-| `tests/test_hex.cpp` | 47 checks for the HEX reader of the PA firmware update |
+| `tests/test_hex.cpp` | 49 checks for the HEX reader of the PA firmware update |
 | `.github/workflows/release.yml` | release binaries and web installer for every tag `v*` |
 | `webflasher/index.html` | the web installer page, published on GitHub Pages |
 

@@ -33,13 +33,14 @@ void PaHex::begin(Store* s) {
     over_ = eof_ = false;
     base_ = 0;
     lineNo_ = 0;
+    whole_ = false;
     err_ = OK;
     errLine_ = errAddr_ = 0;
     skipCfg_ = skipEe_ = false;
 }
 
 bool PaHex::fail(Err e, uint32_t addr) {
-    if (err_ == OK) { err_ = e; errLine_ = lineNo_; errAddr_ = addr; }
+    if (err_ == OK) { err_ = e; errLine_ = whole_ ? 0 : lineNo_ + 1; errAddr_ = addr; }
     return false;
 }
 
@@ -48,9 +49,10 @@ bool PaHex::feed(const uint8_t* d, size_t n) {
         if (err_ != OK) return false;
         const char c = (char)d[i];
         if (c == '\n' || c == '\r') {
-            if (len_ || over_) { lineNo_++; if (!line()) return false; }
+            if ((len_ || over_) && !line()) return false;
             len_ = 0;
             over_ = false;
+            if (c == '\n') lineNo_++;
             continue;
         }
         if (len_ < sizeof(buf_) - 1) buf_[len_++] = c;
@@ -141,13 +143,13 @@ bool PaHex::put(uint32_t byteAddr, const uint8_t* d, size_t n) {
 }
 
 bool PaHex::finish() {
-    if (err_ == OK && (len_ || over_)) { lineNo_++; line(); }
+    if (err_ == OK && (len_ || over_)) line();
     len_ = 0;
     over_ = false;
     if (err_ != OK) return false;
 
     // Errors from here on concern the file as a whole, not a line of it.
-    lineNo_ = 0;
+    whole_ = true;
     // Without the end record a file cut short would pass whenever its
     // vectors happened to come first - and flash half a firmware.
     if (!eof_) return fail(NOEOF);

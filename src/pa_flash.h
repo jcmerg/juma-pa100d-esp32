@@ -41,7 +41,7 @@ public:
 
     void begin();
     Info info() const;
-    bool busy() const;                  // the task runs: hands off the PA link
+    bool busy() const;                  // the task runs, or the PA link is held: no restart
 
     // HEX upload, from the HTTP upload handler.
     bool uploadBegin(const char* name);

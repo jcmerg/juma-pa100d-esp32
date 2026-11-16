@@ -95,7 +95,7 @@ PaFlash::Info PaFlash::info() const {
 }
 
 bool PaFlash::busy() const {
-    return running_;
+    return running_ || hold_;
 }
 
 void PaFlash::setState(State s, uint16_t done, uint16_t total) {
@@ -184,9 +184,11 @@ void PaFlash::uploadAbort() {
 // --- Flashing ------------------------------------------------------------
 
 bool PaFlash::start(bool verifyOnly) {
+    bool held;
     {
         Lock lk(mtx_);
         if (!image_ || running_) return false;
+        held = hold_;
         abort_ = false;
         hold_ = false;
         info_.hold = false;
@@ -201,6 +203,9 @@ bool PaFlash::start(bool verifyOnly) {
     // second for its autobaud edges, so the 0x55 stream must not stall
     // behind the web server.
     if (xTaskCreatePinnedToCore(task, "paflash", 4096, this, 2, nullptr, 1) != pdPASS) {
+        // The link stays paused as it was - abort() still releases it.
+        hold_ = held;
+        { Lock lk(mtx_); info_.hold = held; }
         running_ = false;
         setError("task");
         return false;
@@ -402,7 +407,7 @@ void PaFlash::run() {
     // vector, and the boot loader could then only be restored with a
     // programmer.
     uint8_t first[PaHex::ROW_BYTES];
-    hex.rowData(0, first);
+    if (!hex.rowData(0, first)) { setError("hexstore"); return; }
     for (uint8_t i = 0; i < 2; i++) {
         first[4 * i]     = (uint8_t)row0[i];
         first[4 * i + 1] = (uint8_t)(row0[i] >> 8);
@@ -423,7 +428,7 @@ void PaFlash::run() {
             if (!hex.mask(r) || (r == 0 && skip0)) continue;
             if (abort_) { setError("aborted"); return; }
             const uint32_t pc = (uint32_t)r * PaHex::ROW_ADDR;
-            if (r) hex.rowData(r, data);
+            if (r && !hex.rowData(r, data)) { setError("hexstore"); return; }
             if (!writeRow(pc, r ? data : first)) return;
             setState(Writing, ++n, todo);
         }
@@ -440,7 +445,7 @@ void PaFlash::run() {
         const uint32_t pc = (uint32_t)r * PaHex::ROW_ADDR;
         uint32_t got[32];
         if (!readWords(pc, 32, got)) return;
-        if (r) hex.rowData(r, data);
+        if (r && !hex.rowData(r, data)) { setError("hexstore"); return; }
         if (!same(got, r ? data : first, r ? hex.mask(r) : mask0)) {
             if (!bad) firstBad = pc;
             bad++;

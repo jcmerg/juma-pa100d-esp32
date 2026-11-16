@@ -127,6 +127,9 @@ static void test_errors() {
 
     CHECK(!load("garbage\r\n" + s), "not a record");
     CHECK(hex.error() == PaHex::REC, "hexrec");
+    // Blank lines count: the number is the one an editor shows.
+    CHECK(!load(s.substr(0, s.find('\n') + 1) + "\r\n\r\ngarbage\r\n" + s), "garbage after blank lines");
+    CHECK(hex.errLine() == 4, "hexrec on line 4, got %u", hex.errLine());
 
     CHECK(!load(rec(0, 0x03, { 0, 0, 0, 0 }) + s), "type 03 refused");
     CHECK(hex.error() == PaHex::TYPE, "hextype, got %s", PaHex::errCode(hex.error()));
